@@ -1,8 +1,8 @@
-
 from fastapi import APIRouter, HTTPException
 
 from backend.database.db import get_connection
 from backend.models.tool import ToolCreate, ToolResponse, ToolUpdate
+from backend.services.risk_engine import calculate_risk
 
 router = APIRouter(prefix="/tools", tags=["Tools"])
 
@@ -89,8 +89,28 @@ def update_tool(tool_id: str, update: ToolUpdate):
 
     cursor.execute("SELECT * FROM tools WHERE id = ?", (tool_id,))
     row = cursor.fetchone()
+    updated_tool = dict(row)
+
+    risk_fields = {"risk_weight", "requires_approval_above", "data_sensitivity"}
+    if fields and risk_fields.intersection(fields.keys()):
+        assessment = calculate_risk(updated_tool, agent_id="system")
+        cursor.execute("""
+            INSERT INTO audit_log (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            "system",
+            updated_tool["name"],
+            "permission_change",
+            None,
+            assessment["risk_score"],
+            "risk_recalculated",
+            "; ".join(assessment["factors"]),
+            None
+        ))
+        conn.commit()
+
     conn.close()
-    return dict(row)
+    return updated_tool
 
 
 @router.delete("/{tool_id}")

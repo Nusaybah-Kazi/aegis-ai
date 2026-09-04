@@ -261,12 +261,12 @@ Rules:
 - [x] Verify: POST /audit/ creates log entry with timestamp ✅
 - [x] Push to GitHub
 
-### Phase 3 — Risk Engine
-- [x] Define risk scoring rules (action type, data sensitivity, permission level)✅
-- [x] Build `risk_engine.py` service✅
-- [ ] Integrate risk score into agent model
-- [ ] Add risk recalculation on permission change
-- [ ] Verify: POST a tool call → receive risk score response
+### Phase 3 — Risk Engine ✅ COMPLETE
+- [x] Define risk scoring rules (action type, data sensitivity, permission level)
+- [x] Build `risk_engine.py` service
+- [x] Integrate risk score into agent model
+- [x] Add risk recalculation on permission change
+- [x] Verify: POST a tool call → receive risk score response
 
 ### Phase 4 — Runtime Gateway
 - [ ] Build gateway endpoint: `POST /gateway/evaluate`
@@ -356,6 +356,13 @@ Rules:
 **Where I got stuck:** Nothing blocked — clean run
 **How I solved it:** N/A
 **Next session goal:** Phase 3 — Risk Engine (scoring logic + integration into gateway)
+
+### 04-Sep-2026 — Phase 3 (follow-up)
+**What I learned:** Hooking a side-effect (risk recalculation) into an existing update endpoint, writing system-generated entries into the audit log
+**Where I got stuck:** Nothing major — one copy-paste truncation caused a SyntaxError, fixed by re-pasting the full file
+**How I solved it:** N/A
+**Next session goal:** Phase 4 — Runtime Gateway
+
 
 ---
 
