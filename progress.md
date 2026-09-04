@@ -60,25 +60,40 @@ aegis-ai/
 │
 ├── README.md
 ├── progress.md                    ← YOU ARE HERE
-├── requirements.txt               ← all Python deps
+├── requirements.txt               ← Python backend deps
 ├── .env.example                   ← env vars template (never commit .env)
 ├── .gitignore
 │
-├── app/                           ← Streamlit frontend
-│   ├── main.py                    ← Streamlit entry point
-│   ├── pages/
-│   │   ├── 1_Dashboard.py         ← Agent inventory + risk overview
-│   │   ├── 2_Agent_Detail.py      ← Per-agent risk + dependency map
-│   │   ├── 3_Runtime_Gateway.py   ← Live tool call monitor + approvals
-│   │   ├── 4_Audit_Trail.py       ← Immutable log viewer
-│   │   └── 5_Compliance_Chat.py   ← RAG-powered compliance assistant
-│   └── components/
-│       ├── risk_badge.py          ← Reusable risk score badge
-│       ├── agent_card.py          ← Agent summary card
-│       └── policy_alert.py        ← Policy violation banner
+├── frontend/                      ← React + Vite frontend
+│   ├── index.html
+│   ├── package.json               ← Node deps (React, Vite, Tailwind, etc.)
+│   ├── vite.config.js
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   ├── .env                       ← VITE_API_URL=http://localhost:8000
+│   └── src/
+│       ├── main.jsx               ← React entry point
+│       ├── App.jsx                ← Router + layout
+│       ├── index.css              ← Global styles + Tailwind
+│       ├── api/
+│       │   └── client.js          ← Axios API client (calls FastAPI)
+│       ├── pages/
+│       │   ├── Dashboard.jsx      ← Agent count, avg risk, recent alerts
+│       │   ├── AgentInventory.jsx ← Table of agents with risk badges
+│       │   ├── AgentDetail.jsx    ← Per-agent risk, tools, dependency map
+│       │   ├── RuntimeGateway.jsx ← Live tool call feed + approval queue
+│       │   ├── AuditTrail.jsx     ← Filterable immutable log viewer
+│       │   └── ComplianceChat.jsx ← Chat interface to RAG assistant
+│       └── components/
+│           ├── Sidebar.jsx        ← Navigation sidebar
+│           ├── RiskBadge.jsx      ← Color-coded risk score badge
+│           ├── AgentCard.jsx      ← Agent summary card
+│           ├── PolicyAlert.jsx    ← Policy violation banner
+│           ├── StatCard.jsx       ← Dashboard stat card
+│           └── ApprovalQueue.jsx  ← Human-in-the-loop approval panel
 │
 ├── backend/                       ← FastAPI + Uvicorn backend
-│   ├── main.py                    ← FastAPI app + router registration
+│   ├── main.py                    ← FastAPI app + router registration + CORS
 │   ├── routers/
 │   │   ├── agents.py              ← CRUD for agent inventory
 │   │   ├── tools.py               ← Tool/permission registry
@@ -142,6 +157,7 @@ aegis-ai/
 - Free Claude account at [claude.ai](https://claude.ai) (no card needed)
 - VS Code as your local IDE
 - A GitHub repo to store and share code between sessions
+- Node.js 18+ installed (for React frontend)
 
 ### How Context Works Without MCP
 
@@ -150,7 +166,7 @@ Claude on the web has **no direct access to your filesystem**. Instead, you shar
 | Method | When to use |
 |---|---|
 | **Paste file contents** | Small files — paste the code directly into chat |
-| **Upload files** | Share `.py`, `.md`, `.json`, `.txt` files (Claude reads them) |
+| **Upload files** | Share `.py`, `.jsx`, `.md`, `.json` files (Claude reads them) |
 | **Project Instructions** | Persistent rules Claude follows in every conversation |
 | **Project Knowledge** | Upload key files once — Claude references them in all chats |
 
@@ -166,8 +182,11 @@ Claude on the web has **no direct access to your filesystem**. Instead, you shar
 
 ```
 You are my senior engineer for the Aegis AI project — an AI Security,
-Governance & Compliance platform built with Python, FastAPI, Uvicorn,
-Streamlit, SQLite, ChromaDB and Groq API (free tier).
+Governance & Compliance platform.
+
+Backend: Python 3.13, FastAPI, Uvicorn, SQLite, ChromaDB, Groq API (free tier).
+Frontend: React + Vite, Tailwind CSS, React Router, Axios, Recharts.
+Deployment: Backend on Render (free), Frontend on Vercel (free).
 
 Rules:
 - Explain concepts before writing code.
@@ -177,12 +196,12 @@ Rules:
 - Remind me to save and commit to GitHub after each working feature.
 - Follow the build phases in progress.md in order.
 - All dependencies must be free and open source (no paid APIs except Groq free tier).
-Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 ```
 
 4. **Upload key files to Project Knowledge** (these persist across all chats):
    - `progress.md` — upload once, re-upload when updated
    - `requirements.txt` — once created in Phase 1
+   - `frontend/package.json` — once created in Phase 8
    - Any policy docs from `data/policies/` used for RAG
 
 5. **Each coding session workflow:**
@@ -205,30 +224,35 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 
 ## ✅ Build Checklist — Phase by Phase
 
-### Phase 0 — Environment Setup
+### Phase 0 — Environment Setup ✅ COMPLETE
 - [x] Install Python 3.11+ — Python 3.13.14
 - [x] Install VS Code + Python extension
-- [x] Create GitHub repo: `aegis-ai` (public or private)
-- [x] Clone repo locally
+- [x] Create GitHub repo: `aegis-ai`
+- [x] Initialize git + connect remote origin
 - [x] Create Conda environment: `conda create -n aegis-ai python=3.13`
 - [x] Activate: `conda activate aegis-ai`
 - [x] Get free Groq API key at [console.groq.com](https://console.groq.com)
 - [x] Create `.env` from `.env.example`
 - [x] Verify: `python --version`, `pip --version`
 
-### Phase 1 — Project Scaffold
+### Phase 1 — Project Scaffold ✅ COMPLETE
 - [x] Create full folder structure (all dirs + empty `__init__.py` files)
-- [x] Create `requirements.txt` with all dependencies (chromadb deferred — needs C++ build tools)
+- [x] Create `requirements.txt` with all dependencies
+  - ⚠️ `chromadb` commented out — requires Microsoft C++ Build Tools on Windows; revisit in Phase 6
 - [x] Create `.gitignore`
 - [x] Create `.env.example`
 - [x] Initialize SQLite DB with schema (`init_db.py`) — 5 tables created
-- [x] Seed with sample agents (3) and tools (8) and policies (3)
+  - agents, tools, policies, audit_log, approval_queue
+- [x] Seed with sample agents (3), tools (8), policies (3)
+- [x] Create policy documents for RAG (`data/policies/`)
 - [x] Verify: `python backend/database/init_db.py` ✅
+- [x] Push to GitHub
 
 ### Phase 2 — Backend Core (FastAPI + Uvicorn)
-- [ ] Create FastAPI app (`backend/main.py`)
+- [ ] Create Pydantic models (agent, tool, audit_log, risk)
+- [ ] Create FastAPI app (`backend/main.py`) with CORS enabled for React
 - [ ] Run with Uvicorn: `uvicorn backend.main:app --reload`
-- [ ] Build Agent inventory endpoints (GET, POST, PUT)
+- [ ] Build Agent inventory endpoints (GET all, GET by id, POST, PUT)
 - [ ] Build Tool/permission registry endpoints
 - [ ] Build Audit log endpoints
 - [ ] Verify: visit `http://localhost:8000/docs` — Swagger UI shows all routes
@@ -244,7 +268,7 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 ### Phase 4 — Runtime Gateway
 - [ ] Build gateway endpoint: `POST /gateway/evaluate`
 - [ ] Implement: auto-approve low-risk, block violations, pause high-risk
-- [ ] Add human approval queue (in-memory → later DB-backed)
+- [ ] Add human approval queue (DB-backed)
 - [ ] Build `POST /gateway/approve` and `POST /gateway/deny`
 - [ ] Verify: simulate refund > ₹5,000 → action paused, appears in queue
 
@@ -255,6 +279,7 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 - [ ] Verify: policy violation → action blocked with policy reference
 
 ### Phase 6 — RAG Compliance Assistant
+- [ ] Install C++ Build Tools and install chromadb (Windows prerequisite)
 - [ ] Set up ChromaDB vector store
 - [ ] Build document ingestion pipeline (reads `data/policies/`)
 - [ ] Build `rag_service.py` — retrieve relevant policy chunks
@@ -271,22 +296,27 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 - [ ] Build `compliance_agent.py` — compliance reporting
 - [ ] Verify: orchestrator routes a discovery request → inventory updated
 
-### Phase 8 — Streamlit Frontend
-- [ ] Build main dashboard (`app/main.py`) — agent count, avg risk, recent alerts
-- [ ] Build Agent Inventory page — table of agents with risk badges
-- [ ] Build Agent Detail page — dependency map, permission list, risk history
-- [ ] Build Runtime Gateway page — live tool call feed + approval queue
-- [ ] Build Audit Trail page — filterable log viewer
-- [ ] Build Compliance Chat page — chat interface to RAG assistant
+### Phase 8 — React Frontend
+- [ ] Install Node.js 18+
+- [ ] Scaffold React app with Vite: `npm create vite@latest frontend -- --template react`
+- [ ] Install dependencies: Tailwind CSS, React Router, Axios, Recharts, Lucide React
+- [ ] Configure Tailwind CSS
+- [ ] Build layout: `App.jsx` with sidebar navigation
+- [ ] Build `api/client.js` — Axios instance pointing to FastAPI
+- [ ] Build `Dashboard.jsx` — stat cards (agent count, avg risk, alerts), risk chart
+- [ ] Build `AgentInventory.jsx` — searchable/filterable agent table with risk badges
+- [ ] Build `AgentDetail.jsx` — tool list, risk history chart, dependency info
+- [ ] Build `RuntimeGateway.jsx` — live tool call feed + approval queue with approve/deny
+- [ ] Build `AuditTrail.jsx` — filterable, paginated log viewer
+- [ ] Build `ComplianceChat.jsx` — chat interface to RAG assistant
 - [ ] Verify: all pages load, gateway approval flow works end-to-end
 
 ### Phase 9 — GitHub + Deployment
 - [ ] Push all code to GitHub (check `.gitignore` — no secrets committed)
 - [ ] Write `README.md` with setup instructions
-- [ ] Create `requirements.txt` final version
-- [ ] Deploy to Streamlit Cloud (connect GitHub repo)
-- [ ] Set environment variables in Streamlit Cloud secrets
-- [ ] Verify: live URL works, compliance chat answers questions
+- [ ] Deploy backend to **Render** (free tier — connect GitHub, set env vars)
+- [ ] Deploy frontend to **Vercel** (free — connect GitHub, set `VITE_API_URL` to Render URL)
+- [ ] Verify: live URLs work, compliance chat answers questions
 
 ### Phase 10 — Polish & Demo
 - [ ] Add demo scenario: Customer Refund Agent blocked at ₹25,000
@@ -301,12 +331,6 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 
 > Use this section to record what you learn as you build. One entry per session.
 
-### 04-Sep-2026 — Phase 0 & 1
-**What I learned:** Project scaffolding, conda environments, SQLite schema design, git setup
-**Where I got stuck:** chromadb requires Microsoft C++ Build Tools on Windows — blocked install
-**How I solved it:** Commented out chromadb for now, will revisit in Phase 6 after installing build tools
-**Next session goal:** Phase 2 — FastAPI backend core
-
 ### Template
 ```
 ### [Date] — [Topic]
@@ -318,7 +342,11 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 
 ### Log
 
-*(Start adding entries here as you build)*
+### 04-Sep-2026 — Phase 0 & 1
+**What I learned:** Project scaffolding, conda environments, SQLite schema design, git setup, Python package management with uv
+**Where I got stuck:** `chromadb` requires Microsoft C++ Build Tools on Windows — blocked install
+**How I solved it:** Commented out chromadb for now, will revisit in Phase 6 after installing build tools
+**Next session goal:** Phase 2 — FastAPI backend core; also decided to switch from Streamlit to React + Vite frontend for a more interactive, professional UI
 
 ---
 
@@ -326,16 +354,21 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 
 | Component | Tool | Why Free |
 |---|---|---|
-| Language | Python 3.11+ | Open source |
+| Language | Python 3.13 | Open source |
 | Backend framework | FastAPI | Open source |
 | ASGI server | Uvicorn | Open source |
-| Frontend | Streamlit | Open source + free cloud tier |
+| Frontend framework | React + Vite | Open source |
+| Frontend styling | Tailwind CSS | Open source |
+| Frontend charts | Recharts | Open source |
+| Frontend routing | React Router | Open source |
+| HTTP client (frontend) | Axios | Open source |
 | Database (dev) | SQLite | Built into Python |
 | Vector store (RAG) | ChromaDB | Open source, runs locally |
 | LLM API | Groq API | Free tier, no card needed |
 | IDE | VS Code | Free |
 | Version control | GitHub | Free public/private repos |
-| Deployment | Streamlit Cloud | Free tier at streamlit.io/cloud |
+| Backend deployment | Render | Free tier |
+| Frontend deployment | Vercel | Free tier, no card needed |
 
 ---
 
@@ -348,7 +381,9 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 | `backend/services/policy_checker.py` | Policy evaluation |
 | `backend/agents/orchestrator.py` | Multi-agent coordinator |
 | `backend/services/rag_service.py` | RAG pipeline |
-| `app/main.py` | Streamlit entry point |
+| `frontend/src/App.jsx` | React entry point + routing |
+| `frontend/src/api/client.js` | All API calls to FastAPI |
+| `frontend/src/pages/Dashboard.jsx` | Main dashboard page |
 | `data/policies/` | Drop new policy docs here for RAG |
 | `.env` | Your secrets — NEVER commit this |
 
@@ -357,26 +392,29 @@ Stack: Python 3.11+, FastAPI, Uvicorn, Streamlit, SQLite, ChromaDB, Groq API.
 ## 🚦 Quick Start Commands
 
 ```bash
-# 1. Activate virtual environment
-source venv/bin/activate  # Mac/Linux
-# venv\Scripts\activate   # Windows
+# 1. Activate conda environment
+conda activate aegis-ai
 
-# 2. Install dependencies
-pip install -r requirements.txt
+# 2. Install Python dependencies
+uv pip install -r requirements.txt
 
 # 3. Set up database
 python backend/database/init_db.py
 
-# 4. Start backend
+# 4. Start backend (terminal 1)
 uvicorn backend.main:app --reload --port 8000
 
-# 5. Start frontend (new terminal)
-streamlit run app/main.py
+# 5. Start frontend (terminal 2)
+cd frontend
+npm run dev
 
 # 6. View API docs
 # Open: http://localhost:8000/docs
+
+# 7. View frontend
+# Open: http://localhost:5173
 ```
 
 ---
 
-*Last updated: Start of project — update this file as you progress!*
+*Last updated: 04-Sep-2026 — Switched frontend from Streamlit to React + Vite. Phase 0 & 1 complete.*
