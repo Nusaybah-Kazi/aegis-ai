@@ -1,13 +1,14 @@
 import json
+
 from fastapi import APIRouter, HTTPException
-from typing import List
+
 from backend.database.db import get_connection
-from backend.models.agent import AgentCreate, AgentUpdate, AgentResponse
+from backend.models.agent import AgentCreate, AgentResponse, AgentUpdate
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
 
 
-@router.get("/", response_model=List[AgentResponse])
+@router.get("/", response_model=list[AgentResponse])
 def get_all_agents():
     conn = get_connection()
     cursor = conn.cursor()

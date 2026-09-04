@@ -1,15 +1,15 @@
+
 from pydantic import BaseModel
-from typing import List, Optional
 
 
 class AgentBase(BaseModel):
     name: str
-    description: Optional[str] = None
-    model: Optional[str] = "llama3-8b-8192"
-    status: Optional[str] = "active"
-    tools: Optional[List[str]] = []
-    risk_score: Optional[int] = 0
-    owner: Optional[str] = None
+    description: str | None = None
+    model: str | None = "llama3-8b-8192"
+    status: str | None = "active"
+    tools: list[str] | None = []
+    risk_score: int | None = 0
+    owner: str | None = None
 
 
 class AgentCreate(AgentBase):
@@ -17,18 +17,18 @@ class AgentCreate(AgentBase):
 
 
 class AgentUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    status: Optional[str] = None
-    tools: Optional[List[str]] = None
-    risk_score: Optional[int] = None
-    owner: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    status: str | None = None
+    tools: list[str] | None = None
+    risk_score: int | None = None
+    owner: str | None = None
 
 
 class AgentResponse(AgentBase):
     id: str
-    created_at: Optional[str] = None
-    updated_at: Optional[str] = None
+    created_at: str | None = None
+    updated_at: str | None = None
 
     class Config:
         from_attributes = True

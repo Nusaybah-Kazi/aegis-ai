@@ -262,8 +262,8 @@ Rules:
 - [x] Push to GitHub
 
 ### Phase 3 — Risk Engine
-- [ ] Define risk scoring rules (action type, data sensitivity, permission level)
-- [ ] Build `risk_engine.py` service
+- [x] Define risk scoring rules (action type, data sensitivity, permission level)✅
+- [x] Build `risk_engine.py` service✅
 - [ ] Integrate risk score into agent model
 - [ ] Add risk recalculation on permission change
 - [ ] Verify: POST a tool call → receive risk score response

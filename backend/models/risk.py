@@ -1,12 +1,12 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class RiskAssessment(BaseModel):
     agent_id: str
     tool_name: str
     action: str
-    parameters: Optional[str] = None    # JSON string
+    parameters: str | None = None    # JSON string
 
 
 class RiskResponse(BaseModel):

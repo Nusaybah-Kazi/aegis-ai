@@ -1,15 +1,16 @@
+
 from fastapi import APIRouter, HTTPException, Query
-from typing import List, Optional
+
 from backend.database.db import get_connection
 from backend.models.audit_log import AuditLogEntry, AuditLogResponse
 
 router = APIRouter(prefix="/audit", tags=["Audit Trail"])
 
 
-@router.get("/", response_model=List[AuditLogResponse])
+@router.get("/", response_model=list[AuditLogResponse])
 def get_audit_logs(
-    agent_id: Optional[str] = Query(None),
-    decision: Optional[str] = Query(None),
+    agent_id: str | None = Query(None),
+    decision: str | None = Query(None),
     limit: int = Query(50, le=200)
 ):
     conn = get_connection()

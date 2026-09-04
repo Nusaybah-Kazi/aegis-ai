@@ -1,13 +1,13 @@
+
 from pydantic import BaseModel
-from typing import Optional
 
 
 class ToolBase(BaseModel):
     name: str
-    description: Optional[str] = None
-    risk_weight: Optional[int] = 0
-    requires_approval_above: Optional[float] = None
-    data_sensitivity: Optional[str] = "low"
+    description: str | None = None
+    risk_weight: int | None = 0
+    requires_approval_above: float | None = None
+    data_sensitivity: str | None = "low"
 
 
 class ToolCreate(ToolBase):
@@ -15,16 +15,16 @@ class ToolCreate(ToolBase):
 
 
 class ToolUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    risk_weight: Optional[int] = None
-    requires_approval_above: Optional[float] = None
-    data_sensitivity: Optional[str] = None
+    name: str | None = None
+    description: str | None = None
+    risk_weight: int | None = None
+    requires_approval_above: float | None = None
+    data_sensitivity: str | None = None
 
 
 class ToolResponse(ToolBase):
     id: str
-    created_at: Optional[str] = None
+    created_at: str | None = None
 
     class Config:
         from_attributes = True

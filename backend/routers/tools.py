@@ -1,12 +1,13 @@
+
 from fastapi import APIRouter, HTTPException
-from typing import List
+
 from backend.database.db import get_connection
-from backend.models.tool import ToolCreate, ToolUpdate, ToolResponse
+from backend.models.tool import ToolCreate, ToolResponse, ToolUpdate
 
 router = APIRouter(prefix="/tools", tags=["Tools"])
 
 
-@router.get("/", response_model=List[ToolResponse])
+@router.get("/", response_model=list[ToolResponse])
 def get_all_tools():
     conn = get_connection()
     cursor = conn.cursor()

@@ -1,4 +1,3 @@
-import sqlite3
 import json
 import os
 import sys
@@ -6,7 +5,8 @@ import sys
 # Make sure we can import from backend/
 sys.path.append(os.path.join(os.path.dirname(__file__), "../../"))
 
-from backend.database.db import get_connection, DB_PATH
+from backend.database.db import DB_PATH, get_connection
+
 
 def init_db():
     print(f"Initializing database at: {DB_PATH}")
