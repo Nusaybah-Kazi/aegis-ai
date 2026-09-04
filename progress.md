@@ -248,15 +248,18 @@ Rules:
 - [x] Verify: `python backend/database/init_db.py` ✅
 - [x] Push to GitHub
 
-### Phase 2 — Backend Core (FastAPI + Uvicorn)
-- [ ] Create Pydantic models (agent, tool, audit_log, risk)
-- [ ] Create FastAPI app (`backend/main.py`) with CORS enabled for React
-- [ ] Run with Uvicorn: `uvicorn backend.main:app --reload`
-- [ ] Build Agent inventory endpoints (GET all, GET by id, POST, PUT)
-- [ ] Build Tool/permission registry endpoints
-- [ ] Build Audit log endpoints
-- [ ] Verify: visit `http://localhost:8000/docs` — Swagger UI shows all routes
-- [ ] Write basic tests for each router
+### Phase 2 — Backend Core (FastAPI + Uvicorn) ✅ COMPLETE
+- [x] Create Pydantic models (agent, tool, audit_log, risk)
+- [x] Create FastAPI app (`backend/main.py`) with CORS enabled for React
+- [x] Run with Uvicorn: `uvicorn backend.main:app --reload`
+- [x] Build Agent inventory endpoints (GET all, GET by id, POST, PUT, DELETE)
+- [x] Build Tool/permission registry endpoints (GET all, GET by id, POST, PUT, DELETE)
+- [x] Build Audit log endpoints (GET all, GET by id, POST, DELETE/clear)
+- [x] Verify: `http://localhost:8000/docs` — Swagger UI shows Agents, Tools, Audit Trail, Health
+- [x] Verify: GET /agents/ returns 3 seeded agents ✅
+- [x] Verify: GET /tools/ returns 8 seeded tools ✅
+- [x] Verify: POST /audit/ creates log entry with timestamp ✅
+- [x] Push to GitHub
 
 ### Phase 3 — Risk Engine
 - [ ] Define risk scoring rules (action type, data sensitivity, permission level)
@@ -347,6 +350,12 @@ Rules:
 **Where I got stuck:** `chromadb` requires Microsoft C++ Build Tools on Windows — blocked install
 **How I solved it:** Commented out chromadb for now, will revisit in Phase 6 after installing build tools
 **Next session goal:** Phase 2 — FastAPI backend core; also decided to switch from Streamlit to React + Vite frontend for a more interactive, professional UI
+
+### 04-Sep-2026 — Phase 2
+**What I learned:** FastAPI router structure, Pydantic models for request/response validation, CORS middleware setup, SQLite queries with row_factory for dict-like rows, Swagger UI auto-generation
+**Where I got stuck:** Nothing blocked — clean run
+**How I solved it:** N/A
+**Next session goal:** Phase 3 — Risk Engine (scoring logic + integration into gateway)
 
 ---
 
