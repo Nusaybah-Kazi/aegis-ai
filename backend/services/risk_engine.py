@@ -3,80 +3,18 @@ risk_engine.py
 ---------------
 Core risk scoring logic for Aegis AI.
 
-This module is intentionally framework-free (no FastAPI, no DB access).
-It takes plain data in, and returns a plain risk assessment dict out.
-This makes it trivial to unit test and reuse from the gateway, the
-risk_agent, or anywhere else later.
+Scores are derived from a tool's stored risk profile (risk_weight,
+data_sensitivity, requires_approval_above) rather than a hardcoded
+action-type table. This keeps scoring in sync with whatever tools
+are registered in the DB.
 """
 
-from typing import Optional, Dict, Any
+from typing import Any
 
+SENSITIVITY_MODIFIERS = {"low": 0, "medium": 10, "high": 25}
 
-# ---------------------------------------------------------------------------
-# Reference tables — tweak these numbers as you learn what "feels right"
-# for your org. Keeping them as named constants (not magic numbers buried
-# in logic) makes the scoring auditable and easy to explain in a demo.
-# ---------------------------------------------------------------------------
-
-# Base score purely from the *type* of action being attempted.
-ACTION_TYPE_BASE_SCORES: Dict[str, int] = {
-    "read_data": 5,
-    "query_db": 10,
-    "send_email": 15,
-    "call_external_api": 20,
-    "update_data": 35,
-    "process_refund": 40,
-    "delete_data": 60,
-    "modify_permissions": 70,
-    "send_payment": 75,
-}
-DEFAULT_ACTION_BASE_SCORE = 25  # used if action_type is unrecognized
-
-# Additional points based on how sensitive the data involved is.
-DATA_SENSITIVITY_MODIFIERS: Dict[str, int] = {
-    "public": 0,
-    "internal": 5,
-    "confidential": 15,
-    "restricted": 25,   # e.g. PII, financial records, health data
-}
-DEFAULT_SENSITIVITY_MODIFIER = 10
-
-# Additional points based on the permission level the agent is acting with.
-PERMISSION_LEVEL_MODIFIERS: Dict[str, int] = {
-    "read_only": 0,
-    "read_write": 10,
-    "admin": 25,
-}
-DEFAULT_PERMISSION_MODIFIER = 10
-
-# Magnitude (monetary value) thresholds -> extra points.
-# Sorted ascending; we walk through and take the highest matching bracket.
-MAGNITUDE_THRESHOLDS = [
-    (0, 0),
-    (1_000, 5),
-    (5_000, 15),
-    (25_000, 30),
-    (100_000, 45),
-]
-
-# Score cutoffs for categorical level.
 LOW_MAX = 29
 MEDIUM_MAX = 69
-
-
-def _magnitude_modifier(value: Optional[float]) -> int:
-    """Return extra risk points based on a monetary value, if provided."""
-    if value is None:
-        return 0
-    modifier = 0
-    for threshold, points in MAGNITUDE_THRESHOLDS:
-        if value >= threshold:
-            modifier = points
-    return modifier
-
-
-def _clamp(score: int, low: int = 0, high: int = 100) -> int:
-    return max(low, min(high, score))
 
 
 def _level_from_score(score: int) -> str:
@@ -87,67 +25,84 @@ def _level_from_score(score: int) -> str:
     return "high"
 
 
+def _recommendation_from_level(level: str, threshold_exceeded: bool) -> str:
+    if threshold_exceeded:
+        return "pause"
+    if level == "high":
+        return "block"
+    if level == "medium":
+        return "warn"
+    return "approve"
+
+
 def calculate_risk(
-    action_type: str,
-    data_sensitivity: str = "internal",
-    permission_level: str = "read_only",
-    value: Optional[float] = None,
-) -> Dict[str, Any]:
+    tool: dict[str, Any],
+    agent_id: str,
+    amount: float | None = None,
+) -> dict[str, Any]:
     """
-    Calculate a risk assessment for a single proposed agent action.
+    Calculate a risk assessment for one tool call.
 
     Args:
-        action_type: e.g. "process_refund", "delete_data", "read_data"
-        data_sensitivity: "public" | "internal" | "confidential" | "restricted"
-        permission_level: "read_only" | "read_write" | "admin"
-        value: optional monetary/numeric magnitude of the action
-               (e.g. refund amount). Pass None if not applicable.
+        tool: a tool record dict, matching data/seed/tools.json shape
+              (must include name, risk_weight, data_sensitivity,
+              requires_approval_above).
+        agent_id: id of the agent making the call (for the response).
+        amount: optional numeric value of the action (e.g. refund amount),
+                compared against tool['requires_approval_above'].
 
     Returns:
-        {
-            "score": int (0-100),
-            "level": "low" | "medium" | "high",
-            "breakdown": {
-                "action_base": int,
-                "sensitivity_modifier": int,
-                "permission_modifier": int,
-                "magnitude_modifier": int,
-            }
-        }
+        dict matching RiskResponse: agent_id, tool_name, risk_score,
+        risk_level, factors, recommendation.
     """
-    action_base = ACTION_TYPE_BASE_SCORES.get(action_type, DEFAULT_ACTION_BASE_SCORE)
-    sensitivity_mod = DATA_SENSITIVITY_MODIFIERS.get(
-        data_sensitivity, DEFAULT_SENSITIVITY_MODIFIER
-    )
-    permission_mod = PERMISSION_LEVEL_MODIFIERS.get(
-        permission_level, DEFAULT_PERMISSION_MODIFIER
-    )
-    magnitude_mod = _magnitude_modifier(value)
+    factors: list[str] = []
 
-    raw_score = action_base + sensitivity_mod + permission_mod + magnitude_mod
-    final_score = _clamp(raw_score)
-    level = _level_from_score(final_score)
+    base_score = tool["risk_weight"]
+    factors.append(f"Base risk weight for '{tool['name']}': {base_score}")
+
+    sensitivity = tool.get("data_sensitivity", "medium")
+    sensitivity_mod = SENSITIVITY_MODIFIERS.get(sensitivity, 10)
+    factors.append(f"Data sensitivity '{sensitivity}': +{sensitivity_mod}")
+
+    threshold = tool.get("requires_approval_above")
+    threshold_exceeded = False
+    threshold_mod = 0
+    if threshold is not None and amount is not None and amount > threshold:
+        threshold_exceeded = True
+        threshold_mod = 30
+        factors.append(
+            f"Amount {amount} exceeds approval threshold {threshold}: +{threshold_mod}"
+        )
+
+    score = min(100, base_score + sensitivity_mod + threshold_mod)
+    level = _level_from_score(score)
+    recommendation = _recommendation_from_level(level, threshold_exceeded)
 
     return {
-        "score": final_score,
-        "level": level,
-        "breakdown": {
-            "action_base": action_base,
-            "sensitivity_modifier": sensitivity_mod,
-            "permission_modifier": permission_mod,
-            "magnitude_modifier": magnitude_mod,
-        },
+        "agent_id": agent_id,
+        "tool_name": tool["name"],
+        "risk_score": score,
+        "risk_level": level,
+        "factors": factors,
+        "recommendation": recommendation,
     }
 
 
 if __name__ == "__main__":
-    # Quick manual sanity check — run with:
+    # Quick manual check — run with:
     #   uv run python backend/services/risk_engine.py
-    examples = [
-        {"action_type": "read_data", "data_sensitivity": "public", "permission_level": "read_only"},
-        {"action_type": "process_refund", "data_sensitivity": "confidential", "permission_level": "read_write", "value": 25000},
-        {"action_type": "delete_data", "data_sensitivity": "restricted", "permission_level": "admin"},
-    ]
-    for ex in examples:
-        result = calculate_risk(**ex)
-        print(ex, "->", result)
+    refund_tool = {
+        "name": "process_refund",
+        "risk_weight": 80,
+        "requires_approval_above": 5000,
+        "data_sensitivity": "high",
+    }
+    faq_tool = {
+        "name": "query_faq",
+        "risk_weight": 5,
+        "requires_approval_above": None,
+        "data_sensitivity": "low",
+    }
+
+    print(calculate_risk(refund_tool, agent_id="agent-1", amount=25000))
+    print(calculate_risk(faq_tool, agent_id="agent-2"))
