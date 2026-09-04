@@ -1,0 +1,66 @@
+[
+  {
+    "id": "tool-001",
+    "name": "process_refund",
+    "description": "Processes a customer refund",
+    "risk_weight": 80,
+    "requires_approval_above": 5000,
+    "data_sensitivity": "high"
+  },
+  {
+    "id": "tool-002",
+    "name": "query_order",
+    "description": "Reads order details from the database",
+    "risk_weight": 20,
+    "requires_approval_above": null,
+    "data_sensitivity": "medium"
+  },
+  {
+    "id": "tool-003",
+    "name": "send_notification",
+    "description": "Sends email or SMS notification to customer",
+    "risk_weight": 40,
+    "requires_approval_above": null,
+    "data_sensitivity": "medium"
+  },
+  {
+    "id": "tool-004",
+    "name": "query_faq",
+    "description": "Looks up FAQ knowledge base",
+    "risk_weight": 5,
+    "requires_approval_above": null,
+    "data_sensitivity": "low"
+  },
+  {
+    "id": "tool-005",
+    "name": "create_ticket",
+    "description": "Creates a support ticket",
+    "risk_weight": 15,
+    "requires_approval_above": null,
+    "data_sensitivity": "low"
+  },
+  {
+    "id": "tool-006",
+    "name": "query_inventory",
+    "description": "Reads inventory levels",
+    "risk_weight": 10,
+    "requires_approval_above": null,
+    "data_sensitivity": "low"
+  },
+  {
+    "id": "tool-007",
+    "name": "update_inventory",
+    "description": "Writes inventory changes to database",
+    "risk_weight": 55,
+    "requires_approval_above": null,
+    "data_sensitivity": "medium"
+  },
+  {
+    "id": "tool-008",
+    "name": "send_alert",
+    "description": "Sends internal ops alert",
+    "risk_weight": 30,
+    "requires_approval_above": null,
+    "data_sensitivity": "low"
+  }
+]

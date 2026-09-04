@@ -1,0 +1,32 @@
+[
+  {
+    "id": "agent-001",
+    "name": "Refund Agent",
+    "description": "Processes customer refund requests automatically",
+    "model": "llama3-8b-8192",
+    "status": "active",
+    "tools": ["process_refund", "query_order", "send_notification"],
+    "risk_score": 72,
+    "owner": "payments-team"
+  },
+  {
+    "id": "agent-002",
+    "name": "Support Agent",
+    "description": "Answers customer support queries",
+    "model": "llama3-8b-8192",
+    "status": "active",
+    "tools": ["query_faq", "query_order", "create_ticket"],
+    "risk_score": 25,
+    "owner": "support-team"
+  },
+  {
+    "id": "agent-003",
+    "name": "Inventory Agent",
+    "description": "Monitors and updates product inventory",
+    "model": "llama3-8b-8192",
+    "status": "active",
+    "tools": ["query_inventory", "update_inventory", "send_alert"],
+    "risk_score": 45,
+    "owner": "ops-team"
+  }
+]

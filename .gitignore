@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Database
+data/aegis.db
+data/chroma/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Environments
+venv/
+.venv/
+
+# VS Code
+.vscode/
+
+# Streamlit
+.streamlit/secrets.toml
