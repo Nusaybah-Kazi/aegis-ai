@@ -268,12 +268,12 @@ Rules:
 - [x] Add risk recalculation on permission change
 - [x] Verify: POST a tool call → receive risk score response
 
-### Phase 4 — Runtime Gateway
-- [ ] Build gateway endpoint: `POST /gateway/evaluate`
-- [ ] Implement: auto-approve low-risk, block violations, pause high-risk
-- [ ] Add human approval queue (DB-backed)
-- [ ] Build `POST /gateway/approve` and `POST /gateway/deny`
-- [ ] Verify: simulate refund > ₹5,000 → action paused, appears in queue
+### Phase 4 — Runtime Gateway ✅ COMPLETE
+- [x] Build gateway endpoint: `POST /gateway/evaluate`
+- [x] Implement: auto-approve low-risk, block violations, pause high-risk
+- [x] Add human approval queue (DB-backed)
+- [x] Build `POST /gateway/approve` and `POST /gateway/deny`
+- [x] Verify: simulate refund > ₹5,000 → action paused, appears in queue
 
 ### Phase 5 — Policy Engine
 - [ ] Define policy data model and seed sample policies
@@ -363,6 +363,12 @@ Rules:
 **How I solved it:** N/A
 **Next session goal:** Phase 4 — Runtime Gateway
 
+### 05-Sep-2026 — Phase 4
+**What I learned:** Building a gateway that reuses existing services (risk_engine) rather than duplicating logic; branching a decision into approve/pause/block based on a risk_engine recommendation; a DB-backed human-approval queue with a shared _resolve() helper for approve/deny to avoid duplicating the "already reviewed" guard; switched from conda to a plain venv (uv venv) since conda wasn't installed — same isolation, different tool.
+**Where I got stuck:** Noticed a data drift — the DB's `process_refund` risk_weight (95) didn't match the seed JSON file (80), likely from an earlier manual PUT during Phase 3 testing. Not a bug, but a reminder that `init_db.py`'s `INSERT OR IGNORE` won't re-sync existing rows to the seed file.
+**How I solved it:** Confirmed via GET /tools/tool-001 that the DB value was authoritative and the gateway was working correctly off live data; left the drift as-is since it doesn't affect correctness.
+**Next session goal:** Phase 5 — Policy Engine (policy_checker.py + policy table integration into gateway flow)
+
 
 ---
 
@@ -433,4 +439,5 @@ npm run dev
 
 ---
 
-*Last updated: 04-Sep-2026 — Switched frontend from Streamlit to React + Vite. Phase 0 & 1 complete.*
+*Last updated: 05-Sep-2026 — Phase 4 (Runtime Gateway) complete: evaluate/approve/deny endpoints, approval queue, all four decision paths (approve/pause→approve/pause→deny/block) tested and verified via Swagger UI.*
+
