@@ -5,8 +5,18 @@ Core risk scoring logic for Aegis AI.
 
 Scores are derived from a tool's stored risk profile (risk_weight,
 data_sensitivity, requires_approval_above) rather than a hardcoded
-action-type table. This keeps scoring in sync with whatever tools
-are registered in the DB.
+action-type table.
+
+Scoring logic:
+  - If a tool has requires_approval_above (a threshold) AND an amount
+    is provided, the base score is SCALED by how close amount is to
+    the threshold. A ₹100 refund on a ₹5,000 threshold scores much
+    lower than a ₹4,900 refund.
+  - If no amount is provided (or no threshold exists), the full
+    risk_weight applies — unknown/unquantified actions are treated
+    as potentially full-risk.
+  - Exceeding the threshold adds a flat +30 and forces 'pause'.
+  - data_sensitivity adds a fixed modifier on top.
 """
 
 from typing import Any
@@ -44,34 +54,45 @@ def calculate_risk(
     Calculate a risk assessment for one tool call.
 
     Args:
-        tool: a tool record dict, matching data/seed/tools.json shape
-              (must include name, risk_weight, data_sensitivity,
-              requires_approval_above).
-        agent_id: id of the agent making the call (for the response).
-        amount: optional numeric value of the action (e.g. refund amount),
-                compared against tool['requires_approval_above'].
+        tool:     tool record dict from DB
+        agent_id: agent making the call
+        amount:   optional numeric value (e.g. refund amount)
 
     Returns:
-        dict matching RiskResponse: agent_id, tool_name, risk_score,
-        risk_level, factors, recommendation.
+        dict with risk_score, risk_level, factors, recommendation.
     """
     factors: list[str] = []
 
-    base_score = tool["risk_weight"]
-    factors.append(f"Base risk weight for '{tool['name']}': {base_score}")
+    risk_weight = tool["risk_weight"]
+    threshold = tool.get("requires_approval_above")
 
+    # ── Base score: scale by amount/threshold ratio when possible ────────────
+    if threshold is not None and amount is not None and threshold > 0:
+        # ratio: 0.0 (tiny amount) → 1.0 (amount == threshold)
+        ratio = min(amount / threshold, 1.0)
+        base_score = round(risk_weight * ratio)
+        factors.append(
+            f"Base risk weight for '{tool['name']}': {risk_weight} "
+            f"× amount ratio {ratio:.2f} = {base_score}"
+        )
+    else:
+        # No amount context — apply full risk_weight (unknown = worst case)
+        base_score = risk_weight
+        factors.append(f"Base risk weight for '{tool['name']}': {base_score}")
+
+    # ── Sensitivity modifier ─────────────────────────────────────────────────
     sensitivity = tool.get("data_sensitivity", "medium")
     sensitivity_mod = SENSITIVITY_MODIFIERS.get(sensitivity, 10)
     factors.append(f"Data sensitivity '{sensitivity}': +{sensitivity_mod}")
 
-    threshold = tool.get("requires_approval_above")
+    # ── Threshold exceeded modifier ──────────────────────────────────────────
     threshold_exceeded = False
     threshold_mod = 0
     if threshold is not None and amount is not None and amount > threshold:
         threshold_exceeded = True
         threshold_mod = 30
         factors.append(
-            f"Amount {amount} exceeds approval threshold {threshold}: +{threshold_mod}"
+            f"Amount {amount:,.0f} exceeds approval threshold {threshold:,.0f}: +{threshold_mod}"
         )
 
     score = min(100, base_score + sensitivity_mod + threshold_mod)
@@ -89,13 +110,11 @@ def calculate_risk(
 
 
 if __name__ == "__main__":
-    # Quick manual check — run with:
-    #   uv run python backend/services/risk_engine.py
     refund_tool = {
         "name": "process_refund",
         "risk_weight": 80,
         "requires_approval_above": 5000,
-        "data_sensitivity": "high",
+        "data_sensitivity": "medium",
     }
     faq_tool = {
         "name": "query_faq",
@@ -104,5 +123,6 @@ if __name__ == "__main__":
         "data_sensitivity": "low",
     }
 
-    print(calculate_risk(refund_tool, agent_id="agent-1", amount=25000))
-    print(calculate_risk(faq_tool, agent_id="agent-2"))
+    print("Small refund ₹2,000:", calculate_risk(refund_tool, "agent-1", amount=2000))
+    print("Large refund ₹6,000:", calculate_risk(refund_tool, "agent-1", amount=6000))
+    print("FAQ query:          ", calculate_risk(faq_tool, "agent-2"))

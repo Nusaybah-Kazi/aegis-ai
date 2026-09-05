@@ -1,17 +1,23 @@
 """
 gateway.py (router)
 --------------------
-Runtime Security Gateway — Phase 4.
+Runtime Security Gateway — Phase 5 update.
 
-Every agent tool call is evaluated here BEFORE it executes.
-Uses risk_engine.py directly (no policy-table cross-check yet —
-that's Phase 5's job). Three possible decisions:
+Flow for every tool call:
+  1. Look up the tool in the DB
+  2. Parse parameters (amount etc.)
+  3. Policy check — does any org rule prohibit or restrict this? (NEW in Phase 5)
+  4. Risk score — how dangerous numerically?
+  5. Final decision = strictest of (policy verdict, risk recommendation)
+  6. Log to audit trail / approval queue
 
-  - approved: risk is low/medium and no threshold exceeded -> logged, allowed to run
-  - paused:   risk_engine recommends 'pause' (high risk or threshold exceeded)
-              -> written to approval_queue, waits for a human
-  - blocked:  risk_engine recommends 'block' (high risk, no threshold override)
-              -> logged as blocked, never runs
+Decision matrix:
+  policy blocked               → blocked  (hard stop, no override)
+  policy paused                → paused   (even if risk says approve)
+  risk blocked                 → blocked
+  risk paused                  → paused
+  policy warned / risk warned  → approved (logged with warning in reason)
+  all clear                    → approved
 """
 
 import json
@@ -27,6 +33,7 @@ from backend.models.gateway import (
     GatewayReviewRequest,
 )
 from backend.services.risk_engine import calculate_risk
+from backend.services.policy_checker import check_policies  # ← NEW
 
 router = APIRouter(prefix="/gateway", tags=["Runtime Gateway"])
 
@@ -43,6 +50,7 @@ def evaluate(payload: GatewayEvaluateRequest):
     conn = get_connection()
     cursor = conn.cursor()
 
+    # ── 1. Look up tool ──────────────────────────────────────────────────────
     cursor.execute("SELECT * FROM tools WHERE name = ?", (payload.tool_name,))
     row = cursor.fetchone()
     if row is None:
@@ -51,6 +59,7 @@ def evaluate(payload: GatewayEvaluateRequest):
 
     tool = dict(row)
 
+    # ── 2. Parse parameters ──────────────────────────────────────────────────
     amount = None
     if payload.parameters:
         try:
@@ -60,39 +69,71 @@ def evaluate(payload: GatewayEvaluateRequest):
             conn.close()
             raise HTTPException(status_code=400, detail="parameters must be valid JSON")
 
+    # ── 3. Policy check (NEW — Phase 5) ─────────────────────────────────────
+    policy_result = check_policies(
+        tool_name=payload.tool_name,
+        tool_data_sensitivity=tool.get("data_sensitivity", "low"),
+        amount=amount,
+    )
+
+    # ── 4. Risk scoring ──────────────────────────────────────────────────────
     assessment = calculate_risk(tool, agent_id=payload.agent_id, amount=amount)
     recommendation = assessment["recommendation"]  # 'approve', 'warn', 'pause', 'block'
-    reason = "; ".join(assessment["factors"])
 
-    queue_id = None
+    # ── 5. Combine policy verdict + risk recommendation ──────────────────────
+    # Build a unified reason string
+    risk_reason = "; ".join(assessment["factors"])
+    all_reasons = []
 
-    if recommendation in ("approve", "warn"):
+    if not policy_result.passed:
+        all_reasons.append(f"[POLICY] {policy_result.reason}")
+
+    all_reasons.append(f"[RISK] {risk_reason}")
+    combined_reason = " | ".join(all_reasons)
+
+    # Determine final decision — policy can only make things stricter, never looser
+    if not policy_result.passed and policy_result.action == "block":
+        decision = "blocked"
+    elif not policy_result.passed and policy_result.action == "pause":
+        # Policy says pause — override approve/warn, but block still wins
+        if recommendation == "block":
+            decision = "blocked"
+        else:
+            decision = "paused"
+    elif recommendation in ("approve", "warn"):
         decision = "approved"
-        _write_audit_log(
-            cursor, payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], decision, reason
-        )
-
     elif recommendation == "pause":
         decision = "paused"
+    else:  # block
+        decision = "blocked"
+
+    # ── 6. Execute decision ──────────────────────────────────────────────────
+    queue_id = None
+
+    if decision == "approved":
+        _write_audit_log(
+            cursor, payload.agent_id, payload.tool_name, payload.action,
+            payload.parameters, assessment["risk_score"], decision, combined_reason
+        )
+
+    elif decision == "paused":
         cursor.execute("""
             INSERT INTO approval_queue (agent_id, tool_name, action, parameters, risk_score, reason, status)
             VALUES (?, ?, ?, ?, ?, ?, 'pending')
         """, (
             payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], reason
+            payload.parameters, assessment["risk_score"], combined_reason
         ))
         queue_id = cursor.lastrowid
         _write_audit_log(
             cursor, payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], decision, reason
+            payload.parameters, assessment["risk_score"], decision, combined_reason
         )
 
-    else:  # 'block'
-        decision = "blocked"
+    else:  # blocked
         _write_audit_log(
             cursor, payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], decision, reason
+            payload.parameters, assessment["risk_score"], decision, combined_reason
         )
 
     conn.commit()
@@ -105,10 +146,12 @@ def evaluate(payload: GatewayEvaluateRequest):
         risk_level=assessment["risk_level"],
         factors=assessment["factors"],
         decision=decision,
-        reason=reason,
+        reason=combined_reason,
         queue_id=queue_id,
     )
 
+
+# ── Approval queue endpoints (unchanged from Phase 4) ────────────────────────
 
 @router.get("/queue", response_model=list[ApprovalQueueResponse])
 def get_queue(status: str | None = None):

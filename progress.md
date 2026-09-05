@@ -276,10 +276,10 @@ Rules:
 - [x] Verify: simulate refund > ₹5,000 → action paused, appears in queue
 
 ### Phase 5 — Policy Engine
-- [ ] Define policy data model and seed sample policies
-- [ ] Build `policy_checker.py` — evaluates action against applicable policies
-- [ ] Integrate policy check into gateway flow
-- [ ] Verify: policy violation → action blocked with policy reference
+- [x] Define policy data model and seed sample policies
+- [x] Build `policy_checker.py` — evaluates action against applicable policies
+- [x] Integrate policy check into gateway flow
+- [x] Verify: policy violation → action blocked with policy reference
 
 ### Phase 6 — RAG Compliance Assistant
 - [ ] Install C++ Build Tools and install chromadb (Windows prerequisite)
@@ -369,6 +369,22 @@ Rules:
 **How I solved it:** Confirmed via GET /tools/tool-001 that the DB value was authoritative and the gateway was working correctly off live data; left the drift as-is since it doesn't affect correctness.
 **Next session goal:** Phase 5 — Policy Engine (policy_checker.py + policy table integration into gateway flow)
 
+### 05-Sep-2026 — Phase 5
+**What I learned:** Policy engine sits above the risk engine in the gateway —
+policies can only make decisions stricter, never looser. Three rule types:
+amount_limit (threshold comparison), permission (always triggers), data_access
+(sensitivity-based). The strictest verdict wins when multiple policies apply.
+Also fixed a fundamental flaw in the risk engine: fixed risk_weight meant every
+tool call scored the same regardless of amount. Replaced it with ratio-based
+scaling (amount ÷ threshold) so small actions score proportionally lower.
+**Where I got stuck:** query_customer_pii didn't exist in the tools table —
+policy seed data was misaligned with tool seed data. Also hit a Windows
+triple-quote issue running multi-line python -c commands.
+**How I solved it:** Fixed policy applies_to via a script; fixed tool
+data_sensitivity from high → medium; rewrote risk_engine base scoring
+to scale with amount ratio.
+**Next session goal:** Phase 6 — RAG Compliance Assistant
+(install C++ Build Tools, ChromaDB, ingest policy docs, build /compliance/ask endpoint)
 
 ---
 
