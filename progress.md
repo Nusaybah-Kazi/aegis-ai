@@ -282,7 +282,7 @@ Rules:
 - [x] Verify: policy violation → action blocked with policy reference
 
 ### Phase 6 — RAG Compliance Assistant
-- [ ] Install C++ Build Tools and install chromadb (Windows prerequisite)
+- [x] Install C++ Build Tools and install chromadb (Windows prerequisite)
 - [ ] Set up ChromaDB vector store
 - [ ] Build document ingestion pipeline (reads `data/policies/`)
 - [ ] Build `rag_service.py` — retrieve relevant policy chunks
