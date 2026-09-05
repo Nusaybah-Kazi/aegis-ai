@@ -5,6 +5,7 @@ Exposes risk scoring as an API endpoint.
 """
 
 import json
+
 from fastapi import APIRouter, HTTPException
 
 from backend.database.db import get_connection

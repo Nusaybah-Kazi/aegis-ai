@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.routers import agents, audit, tools, risk
+from backend.routers import agents, audit, gateway, tools
 
 app = FastAPI(
     title="Aegis AI — Governance & Compliance API",
@@ -26,7 +26,7 @@ app.add_middleware(
 app.include_router(agents.router)
 app.include_router(tools.router)
 app.include_router(audit.router)
-app.include_router(risk.router)
+app.include_router(gateway.router)
 
 
 @app.get("/", tags=["Health"])
