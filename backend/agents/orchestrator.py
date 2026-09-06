@@ -5,26 +5,30 @@ Governance Orchestrator — the single entry point for running any
 governance task, regardless of which specialist agent handles it.
 
 The orchestrator itself does NO domain logic (no scoring, no policy
-checks, no discovery). It only:
+checks, no discovery, no RAG). It only:
   1. Accepts a task name (e.g. "run_discovery")
   2. Looks up the matching specialist agent function
   3. Calls it, and wraps the result in a consistent response envelope
-
-As more specialist agents are built (risk_agent, policy_agent,
-runtime_agent, compliance_agent), their tasks get added to TASK_REGISTRY
-below — the rest of this file doesn't need to change.
 """
 
 from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
+from backend.agents.compliance_agent import ask_compliance
 from backend.agents.discovery_agent import run_discovery
+from backend.agents.policy_agent import run_policy_evaluation
+from backend.agents.risk_agent import run_risk_reassessment
+from backend.agents.runtime_agent import evaluate_tool_call
 
-# Dispatch table: task name -> (agent function, description)
+# Dispatch table: task name -> agent function
 # Each agent function must take **kwargs and return a dict.
 TASK_REGISTRY: dict[str, Callable[..., dict[str, Any]]] = {
     "run_discovery": lambda **kwargs: run_discovery(),
+    "run_risk_reassessment": lambda **kwargs: run_risk_reassessment(),
+    "run_policy_evaluation": lambda **kwargs: run_policy_evaluation(),
+    "evaluate_tool_call": lambda **kwargs: evaluate_tool_call(**kwargs),
+    "ask_compliance": lambda **kwargs: ask_compliance(**kwargs),
 }
 
 
@@ -33,13 +37,12 @@ def run_task(task_name: str, **kwargs) -> dict[str, Any]:
     Runs a single governance task by name.
 
     Args:
-        task_name: Must be a key in TASK_REGISTRY (e.g. "run_discovery")
+        task_name: Must be a key in TASK_REGISTRY
         **kwargs:  Any parameters the specific agent function needs
 
     Returns:
         dict with:
           task       — the task name that was run
-          agent      — which agent handled it
           timestamp  — when it ran (UTC ISO format)
           result     — the raw dict returned by the agent function
 
