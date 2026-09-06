@@ -282,13 +282,13 @@ Rules:
 - [x] Verify: policy violation → action blocked with policy reference
 
 ### Phase 6 — RAG Compliance Assistant
-- [x] Install C++ Build Tools and install chromadb (Windows prerequisite)
-- [ ] Set up ChromaDB vector store
-- [ ] Build document ingestion pipeline (reads `data/policies/`)
-- [ ] Build `rag_service.py` — retrieve relevant policy chunks
-- [ ] Build `groq_client.py` — call Groq LLM with retrieved context
-- [ ] Build `GET /compliance/ask?q=...` endpoint
-- [ ] Verify: ask "Why was the ₹25,000 refund blocked?" → grounded answer
+- [x] Install chromadb (1.5.9 — pre-built wheels, no C++ Build Tools needed)
+- [x] Set up ChromaDB vector store (PersistentClient, cosine similarity, all-MiniLM-L6-v2 embeddings)
+- [x] Build document ingestion pipeline (reads `data/policies/`, chunks at 500 chars with 50 char overlap)
+- [x] Build `rag_service.py` — retrieve relevant policy chunks + assemble context
+- [x] Build `groq_client.py` — Groq API wrapper with <think> tag stripping for Qwen3
+- [x] Build `GET /compliance/ask?q=...` endpoint
+- [x] Verify: ask "Why was the ₹25,000 refund blocked?" → grounded answer citing refund_policy.md
 
 ### Phase 7 — Multi-Agent Architecture
 - [ ] Build `orchestrator.py` — routes tasks to specialist agents
@@ -385,6 +385,21 @@ data_sensitivity from high → medium; rewrote risk_engine base scoring
 to scale with amount ratio.
 **Next session goal:** Phase 6 — RAG Compliance Assistant
 (install C++ Build Tools, ChromaDB, ingest policy docs, build /compliance/ask endpoint)
+
+### 06-Sep-2026 — Phase 6
+**What I learned:** RAG pipeline: chunk policy docs → embed into ChromaDB → 
+similarity search on query → inject chunks as context → LLM answers from 
+your docs, not training data. ChromaDB 1.5.9 ships pre-built wheels so 
+no C++ Build Tools needed. Qwen3 models on Groq are thinking models that 
+wrap reasoning in <think>...</think> tags — strip them with regex. Thinking 
+models need large max_tokens (2000+) or they exhaust the budget on reasoning 
+before writing the answer. Model IDs change — always verify against 
+client.models.list() rather than hardcoding from docs.
+**Where I got stuck:** llama3-8b-8192 decommissioned; llama-3.1-8b-instant 
+not found; qwen3 thinking tags eating entire token budget at 600 max_tokens.
+**How I solved it:** Listed available models via Groq client API; switched to 
+qwen/qwen3.6-27b; stripped <think> tags with re.sub; bumped max_tokens to 2000.
+**Next session goal:** Phase 7 — Multi-Agent Architecture (orchestrator + specialist agents)
 
 ---
 

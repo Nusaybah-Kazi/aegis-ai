@@ -7,14 +7,19 @@ pydantic==2.8.2
 # Database
 aiosqlite==0.20.0
 
-# Vector store (RAG)
-chromadb==0.4.24
+# Vector store (RAG) — Phase 6
+# Note: chromadb 1.5.9+ ships pre-built wheels; no C++ Build Tools needed on Windows
+chromadb==1.5.9
 numpy<2.0
+
+# Embeddings (auto-downloaded by chromadb on first run — cached in ~/.cache/chroma)
+# all-MiniLM-L6-v2 model (~79MB) is downloaded once via onnxruntime
+onnxruntime==1.29.0
+tokenizers==0.23.2
+huggingface-hub==1.30.0
+
 # LLM
 groq==0.9.0
-
-# Frontend
-streamlit==1.37.0
 
 # HTTP client
 httpx==0.27.0
