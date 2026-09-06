@@ -290,14 +290,14 @@ Rules:
 - [x] Build `GET /compliance/ask?q=...` endpoint
 - [x] Verify: ask "Why was the ₹25,000 refund blocked?" → grounded answer citing refund_policy.md
 
-### Phase 7 — Multi-Agent Architecture
-- [ ] Build `orchestrator.py` — routes tasks to specialist agents
-- [ ] Build `discovery_agent.py` — scans and updates inventory
-- [ ] Build `risk_agent.py` — continuous risk reassessment
-- [ ] Build `policy_agent.py` — policy compliance evaluation
-- [ ] Build `runtime_agent.py` — runtime enforcement decisions
-- [ ] Build `compliance_agent.py` — compliance reporting
-- [ ] Verify: orchestrator routes a discovery request → inventory updated
+### Phase 7 — Multi-Agent Architecture ✅ COMPLETE
+- [x] Build `orchestrator.py` — routes tasks to specialist agents
+- [x] Build `discovery_agent.py` — scans and updates inventory
+- [x] Build `risk_agent.py` — continuous risk reassessment
+- [x] Build `policy_agent.py` — policy compliance evaluation
+- [x] Build `runtime_agent.py` — runtime enforcement decisions
+- [x] Build `compliance_agent.py` — compliance reporting
+- [x] Verify: orchestrator routes a discovery request → inventory updated
 
 ### Phase 8 — React Frontend
 - [ ] Install Node.js 18+
@@ -401,6 +401,39 @@ not found; qwen3 thinking tags eating entire token budget at 600 max_tokens.
 qwen/qwen3.6-27b; stripped <think> tags with re.sub; bumped max_tokens to 2000.
 **Next session goal:** Phase 7 — Multi-Agent Architecture (orchestrator + specialist agents)
 
+### 06-Sep-2026 — Phase 6 verification
+**What I learned:** qwen3.6 as a thinking model silently produces empty
+answers when max_tokens is too low for its reasoning + response combined,
+and Groq's free-tier OTPM cap (1000/min) rejects requests where max_tokens
+is set too high. Switched default model to openai/gpt-oss-20b to avoid the
+tradeoff entirely.
+**Where I got stuck:** /compliance/ask returned 200 with an empty "answer"
+field — no error, just silent failure. Needed to inspect raw JSON to catch it.
+**How I solved it:** Swapped model in groq_client.py from qwen/qwen3.6-27b
+to openai/gpt-oss-20b.
+**Next session goal:** Phase 7 — Multi-Agent Architecture
+
+### 06-Sep-2026 — Phase 7
+**What I learned:** An orchestrator is just a dispatch table — task name
+in, matching agent function out, wrapped in a consistent envelope. Built
+5 specialist agents on top of existing services (discovery, risk, policy,
+runtime, compliance) rather than duplicating logic. Discovery/risk/policy
+agents are read-only reporters by design — they never write fixes back to
+the DB; that stays a human decision. Also hit a real Groq issue while
+re-verifying Phase 6: qwen3.6 (a thinking model) silently returns an empty
+answer when max_tokens is too low for its reasoning + response combined,
+while Groq's free-tier OTPM cap rejects the request if max_tokens is set
+too high. Switched groq_client.py's default model to openai/gpt-oss-20b
+to avoid the tradeoff.
+**Where I got stuck:** Running new agent files directly with
+`python path/to/file.py` failed with `ModuleNotFoundError: No module named
+'backend'` — Python only adds the script's own directory to sys.path, not
+the project root. Fixed by running as a module instead:
+`python -m backend.agents.discovery_agent`.
+**How I solved it:** N/A (see above)
+**Next session goal:** Phase 8 — React Frontend (Vite scaffold, Tailwind,
+Dashboard/AgentInventory/AgentDetail/RuntimeGateway/AuditTrail/
+ComplianceChat pages)
 ---
 
 ## 🛠️ Free Stack Reference
@@ -471,4 +504,6 @@ npm run dev
 ---
 
 *Last updated: 05-Sep-2026 — Phase 4 (Runtime Gateway) complete: evaluate/approve/deny endpoints, approval queue, all four decision paths (approve/pause→approve/pause→deny/block) tested and verified via Swagger UI.*
+
+*Last updated: 06-Sep-2026 — Phase 7 (Multi-Agent Architecture) complete: orchestrator + discovery/risk/policy/runtime/compliance agents built, tested individually and through orchestrator routing, all committed and pushed.*
 
