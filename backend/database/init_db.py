@@ -135,6 +135,7 @@ def init_db():
         ("policy-001", "Refund Limit", "Auto-refunds capped at ₹5,000", "amount_limit", 5000, "pause", '["process_refund"]'),
         ("policy-002", "PII Access Control", "PII access requires approval", "permission", None, "block", '["query_customer_pii"]'),
         ("policy-003", "Bulk Write Limit", "Bulk DB writes over 100 records need approval", "amount_limit", 100, "pause", '["update_inventory"]'),
+        ("policy-004", "Senior Approval Refund Limit", "Refunds above ₹25,000 require senior management approval", "amount_limit", 25000, "block", '["process_refund"]'),
     ]
 
     for policy in sample_policies:

@@ -15,7 +15,10 @@ Scoring logic:
   - If no amount is provided (or no threshold exists), the full
     risk_weight applies — unknown/unquantified actions are treated
     as potentially full-risk.
-  - Exceeding the threshold adds a flat +30 and forces 'pause'.
+  - Exceeding the threshold adds a flat +30. If the resulting score
+    is >= 75, the action is BLOCKED outright (matches refund_policy.md:
+    "Refunds above ₹25,000 are automatically blocked... risk score ≥ 75").
+    Otherwise, exceeding the threshold pauses for human review.
   - data_sensitivity adds a fixed modifier on top.
 """
 
@@ -25,6 +28,7 @@ SENSITIVITY_MODIFIERS = {"low": 0, "medium": 10, "high": 25}
 
 LOW_MAX = 29
 MEDIUM_MAX = 69
+BLOCK_THRESHOLD = 75
 
 
 def _level_from_score(score: int) -> str:
@@ -35,7 +39,9 @@ def _level_from_score(score: int) -> str:
     return "high"
 
 
-def _recommendation_from_level(level: str, threshold_exceeded: bool) -> str:
+def _recommendation_from_level(level: str, threshold_exceeded: bool, score: int) -> str:
+    if threshold_exceeded and score >= BLOCK_THRESHOLD:
+        return "block"
     if threshold_exceeded:
         return "pause"
     if level == "high":
@@ -97,7 +103,10 @@ def calculate_risk(
 
     score = min(100, base_score + sensitivity_mod + threshold_mod)
     level = _level_from_score(score)
-    recommendation = _recommendation_from_level(level, threshold_exceeded)
+    recommendation = _recommendation_from_level(level, threshold_exceeded, score)
+
+    if threshold_exceeded and score >= BLOCK_THRESHOLD:
+        factors.append(f"Risk score {score} >= {BLOCK_THRESHOLD}: action blocked outright")
 
     return {
         "agent_id": agent_id,
@@ -125,4 +134,5 @@ if __name__ == "__main__":
 
     print("Small refund ₹2,000:", calculate_risk(refund_tool, "agent-1", amount=2000))
     print("Large refund ₹6,000:", calculate_risk(refund_tool, "agent-1", amount=6000))
+    print("Huge refund ₹25,000:", calculate_risk(refund_tool, "agent-1", amount=25000))
     print("FAQ query:          ", calculate_risk(faq_tool, "agent-2"))

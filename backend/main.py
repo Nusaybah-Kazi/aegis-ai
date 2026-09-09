@@ -4,7 +4,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.database.init_db import init_db
 from backend.database.vector_store import ingest_policies
 from backend.routers import agents, audit, gateway, tools
-from backend.routers.compliance import router as compliance_router
 
 app = FastAPI(
     title="Aegis AI — Governance & Compliance API",
@@ -28,6 +27,17 @@ def startup_event():
 
 
 # CORS — allows React (localhost:5173) and future Vercel URL to talk to this API
+from fastapi import FastAPI
+
+from backend.routers import orchestrator
+
+app = FastAPI(
+    title="Aegis AI — Governance & Compliance API",
+    description="Runtime security gateway, risk engine, and compliance assistant for AI agents.",
+    version="1.0.0"
+)
+
+# CORS — allows React (localhost:5173) and future Vercel URL to talk to this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -45,7 +55,8 @@ app.include_router(agents.router)
 app.include_router(tools.router)
 app.include_router(audit.router)
 app.include_router(gateway.router)
-app.include_router(compliance_router)
+app.include_router(orchestrator.router)
+
 
 @app.get("/", tags=["Health"])
 def root():
