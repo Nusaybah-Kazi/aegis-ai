@@ -314,12 +314,16 @@ Rules:
 - [x] Build `ComplianceChat.jsx` — chat interface to RAG assistant with suggested questions
 - [x] Verify: all pages load, gateway approval flow works end-to-end ✅
 
-### Phase 9 — GitHub + Deployment
-- [ ] Push all code to GitHub (check `.gitignore` — no secrets committed)
-- [ ] Write `README.md` with setup instructions
-- [ ] Deploy backend to **Render** (free tier — connect GitHub, set env vars)
-- [ ] Deploy frontend to **Vercel** (free — connect GitHub, set `VITE_API_URL` to Render URL)
-- [ ] Verify: live URLs work, compliance chat answers questions
+### Phase 9 — GitHub + Deployment ✅ COMPLETE
+- [x] Push all code to GitHub (check `.gitignore` — no secrets committed)
+- [x] Write `README.md` with setup instructions
+- [x] Deploy backend to **Render** (free tier — connect GitHub, set env vars)
+- [x] Deploy frontend to **Vercel** (free — connect GitHub, set `VITE_API_URL` to Render URL)
+- [x] Verify: live URLs work, compliance chat answers questions
+
+**Live URLs:**
+- Backend: https://aegis-ai-backend-8ie5.onrender.com
+- Frontend: https://aegis-ai-ivory.vercel.app
 
 ### Phase 10 — Polish & Demo
 - [ ] Add demo scenario: Customer Refund Agent blocked at ₹25,000
@@ -452,6 +456,36 @@ schema; updated demo scenarios to use tool_name directly.
 **Next session goal:** Phase 9 — push to GitHub, deploy backend to Render,
 deploy frontend to Vercel.
 
+### 09-Sep-2026 — Phase 9
+**What I learned:** Render's free tier has an ephemeral filesystem — SQLite
+and ChromaDB data don't persist across restarts, so the app must self-seed
+on every boot via a FastAPI @app.on_event("startup") hook (safe here since
+init_db uses INSERT OR IGNORE and vector_store uses upsert). Render's build
+environment defaults to the newest Python (3.14), which lacks pre-built
+wheels for pinned older pydantic-core versions and tries to compile from
+Rust source in a read-only filesystem — fails outright. Fix is a
+PYTHON_VERSION env var (runtime.txt alone wasn't picked up). Vercel/Render
+GitHub Apps are scoped per-account — being a repo collaborator doesn't
+surface someone else's private app installation; forking the repo to your
+own account is the simplest fix when repos are public. Vercel needs an
+explicit Root Directory setting when the deployable app lives in a
+subfolder (frontend/), or it misdetects the project type from repo-root
+files.
+**Where I got stuck:** Render build failed on pydantic-core (Rust/maturin,
+read-only filesystem) under Python 3.14; runtime.txt didn't pin the version
+as expected; Vercel's GitHub App couldn't see a collaborator's repo; Vercel
+initially misdetected the project as FastAPI before Root Directory was set.
+**How I solved it:** Set PYTHON_VERSION=3.13.14 as a Render env var; forked
+the repo to my own GitHub account for Vercel access; set Root Directory to
+`frontend` in Vercel, which correctly auto-detected Vite afterward.
+**Also fixed:** accidentally pasted a real GROQ_API_KEY into chat — rotated
+the key immediately and updated it in both local .env and Render's env vars.
+**Next session goal:** Phase 10 — Polish & Demo (demo scenarios, walkthrough)
+— plus revisit two known gaps: risk_engine doesn't actually "block" refunds
+over ₹25,000 despite refund_policy.md now claiming it does; and
+client.js's orchestrate() calls a POST /orchestrator/run endpoint that
+doesn't exist yet.
+
 ---
 
 ## 🛠️ Free Stack Reference
@@ -525,3 +559,4 @@ npm run dev
 
 *Last updated: 06-Sep-2026 — Phase 7 (Multi-Agent Architecture) complete: orchestrator + discovery/risk/policy/runtime/compliance agents built, tested individually and through orchestrator routing, all committed and pushed.*
 
+*Last updated: 09-Sep-2026 — Phase 9 (GitHub + Deployment) complete: backend live on Render, frontend live on Vercel, compliance chat verified working end-to-end in production.*
