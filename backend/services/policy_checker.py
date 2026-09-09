@@ -19,7 +19,6 @@ Evaluation order:
 """
 
 import json
-from typing import Optional
 
 from backend.database.db import get_connection
 from backend.models.policy import PolicyCheckResult
@@ -36,7 +35,7 @@ def _strictest(a: str, b: str) -> str:
 def check_policies(
     tool_name: str,
     tool_data_sensitivity: str,
-    amount: Optional[float] = None,
+    amount: float | None = None,
 ) -> PolicyCheckResult:
     """
     Evaluate all applicable policies for this tool call.
@@ -60,10 +59,10 @@ def check_policies(
     # Convert to list of dicts
     policies = [dict(row) for row in rows]
 
-    worst_action: Optional[str] = None
-    worst_policy_id: Optional[str] = None
-    worst_policy_name: Optional[str] = None
-    worst_reason: Optional[str] = None
+    worst_action: str | None = None
+    worst_policy_id: str | None = None
+    worst_policy_name: str | None = None
+    worst_reason: str | None = None
 
     for policy in policies:
         # Parse applies_to — stored as JSON string e.g. '["process_refund"]'

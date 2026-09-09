@@ -62,7 +62,7 @@ Question: {question}
 
 Answer based only on the policy context above."""
 
-    answer = chat(system_prompt=SYSTEM_PROMPT, user_message=user_message, max_tokens=2000)
+    answer = chat(system_prompt=SYSTEM_PROMPT, user_message=user_message, max_tokens=800)
 
     return {
         "answer": answer,
