@@ -1,23 +1,19 @@
-# Secrets
+# Dependencies
+node_modules/
+frontend/node_modules/
+
+# Build outputs
+frontend/dist/
+
+# Env files
 .env
+frontend/.env
 
 # Database
 data/aegis.db
-data/chroma/
+data/chroma_db/
 
 # Python
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-.Python
-
-# Environments
-venv/
 .venv/
-
-# VS Code
-.vscode/
-
-# Streamlit
-.streamlit/secrets.toml

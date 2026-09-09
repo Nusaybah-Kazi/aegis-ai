@@ -299,20 +299,20 @@ Rules:
 - [x] Build `compliance_agent.py` — compliance reporting
 - [x] Verify: orchestrator routes a discovery request → inventory updated
 
-### Phase 8 — React Frontend
-- [ ] Install Node.js 18+
-- [ ] Scaffold React app with Vite: `npm create vite@latest frontend -- --template react`
-- [ ] Install dependencies: Tailwind CSS, React Router, Axios, Recharts, Lucide React
-- [ ] Configure Tailwind CSS
-- [ ] Build layout: `App.jsx` with sidebar navigation
-- [ ] Build `api/client.js` — Axios instance pointing to FastAPI
-- [ ] Build `Dashboard.jsx` — stat cards (agent count, avg risk, alerts), risk chart
-- [ ] Build `AgentInventory.jsx` — searchable/filterable agent table with risk badges
-- [ ] Build `AgentDetail.jsx` — tool list, risk history chart, dependency info
-- [ ] Build `RuntimeGateway.jsx` — live tool call feed + approval queue with approve/deny
-- [ ] Build `AuditTrail.jsx` — filterable, paginated log viewer
-- [ ] Build `ComplianceChat.jsx` — chat interface to RAG assistant
-- [ ] Verify: all pages load, gateway approval flow works end-to-end
+### Phase 8 — React Frontend ✅ COMPLETE
+- [x] Install Node.js 18+
+- [x] Scaffold React app with Vite: `npm create vite@latest frontend -- --template react`
+- [x] Install dependencies: Tailwind CSS v4, React Router, Axios, Recharts, Lucide React
+- [x] Configure Tailwind CSS (v4 — via @tailwindcss/vite plugin, no config file)
+- [x] Build layout: `App.jsx` with sidebar navigation
+- [x] Build `api/client.js` — Axios instance pointing to FastAPI
+- [x] Build `Dashboard.jsx` — stat cards (agent count, avg risk, alerts), risk chart
+- [x] Build `AgentInventory.jsx` — searchable/filterable agent grid with risk arcs
+- [x] Build `AgentDetail.jsx` — tool list, risk history chart, recent events
+- [x] Build `RuntimeGateway.jsx` — live tool call feed + approval queue with approve/deny
+- [x] Build `AuditTrail.jsx` — filterable, paginated log viewer with CSV export
+- [x] Build `ComplianceChat.jsx` — chat interface to RAG assistant with suggested questions
+- [x] Verify: all pages load, gateway approval flow works end-to-end ✅
 
 ### Phase 9 — GitHub + Deployment
 - [ ] Push all code to GitHub (check `.gitignore` — no secrets committed)
@@ -434,6 +434,24 @@ the project root. Fixed by running as a module instead:
 **Next session goal:** Phase 8 — React Frontend (Vite scaffold, Tailwind,
 Dashboard/AgentInventory/AgentDetail/RuntimeGateway/AuditTrail/
 ComplianceChat pages)
+
+### 09-Sep-2026 — Phase 8
+**What I learned:** Tailwind v4 drops tailwind.config.js entirely — theme is defined
+in @theme blocks inside CSS, and the plugin wires into Vite directly via
+@tailwindcss/vite. React Router v7 works the same as v6 for basic routing.
+Frontend-backend field name mismatches (tool_id vs tool_name, action_type vs action)
+are the most common integration bug — always check the backend's OpenAPI schema at
+/docs before wiring up API calls. Vite must be run from the frontend/ directory or
+it can't resolve node_modules.
+**Where I got stuck:** Tailwind v4 config (no tailwind.config.js); package install
+running from wrong directory; gateway 422 errors due to wrong request field names;
+tool lookup 404 because backend expects tool_name string not tool_id.
+**How I solved it:** Switched to @tailwindcss/vite + @theme in CSS; verified field
+names via /docs Swagger UI; updated client.js to map frontend field names to backend
+schema; updated demo scenarios to use tool_name directly.
+**Next session goal:** Phase 9 — push to GitHub, deploy backend to Render,
+deploy frontend to Vercel.
+
 ---
 
 ## 🛠️ Free Stack Reference
