@@ -34,9 +34,9 @@ def startup_event():
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",              # React dev server
-        "http://localhost:3000",              # fallback
-        "https://aegis-ai-ivory.vercel.app",  # production frontend
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "https://aegis-ai-five-orcin.vercel.app",  # ← your actual Vercel URL
     ],
     allow_credentials=True,
     allow_methods=["*"],
