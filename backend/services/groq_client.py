@@ -1,8 +1,9 @@
 # backend/services/groq_client.py
 import os
 import re
-from groq import Groq
+
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
@@ -24,7 +25,7 @@ def _strip_thinking(text: str) -> str:
     text = re.sub(r'<think>.*', '', text, flags=re.DOTALL)
     return text.strip()
 
-def chat(system_prompt: str, user_message: str, model: str = "qwen/qwen3.6-27b", max_tokens: int = 600) -> str:
+def chat(system_prompt: str, user_message: str, model: str = "openai/gpt-oss-20b", max_tokens: int = 600) -> str:
     """
     Sends a message to Groq and returns the assistant's text response.
 
