@@ -1,9 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
 from backend.database.init_db import init_db
 from backend.database.vector_store import ingest_policies
 from backend.routers import agents, audit, gateway, tools
@@ -15,30 +12,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-
-@app.on_event("startup")
-def startup_event():
-    """
-    Ensures the SQLite DB and ChromaDB vector store are initialized and
-    seeded on every app startup. Required because Render's free tier has
-    an ephemeral filesystem — any local writes are wiped on restart, so
-    the app must be able to rebuild its own state from scratch every time
-    it boots. Both init_db() and ingest_policies() are safe to re-run
-    (INSERT OR IGNORE / upsert), so this never duplicates data.
-    """
-    init_db()
-    ingest_policies()
-
-
-# CORS — allows React (localhost:5173) and the deployed Vercel frontend to talk to this API
+# CORS must be added before routers
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://aegis-ai-five-orcin.vercel.app",  # ← your actual Vercel URL
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -50,6 +28,11 @@ app.include_router(audit.router)
 app.include_router(gateway.router)
 app.include_router(compliance_router)
 
+@app.on_event("startup")
+def startup_event():
+    init_db()
+    ingest_policies()
+
 @app.get("/", tags=["Health"])
 def root():
     return {
@@ -58,7 +41,6 @@ def root():
         "version": "1.0.0",
         "docs": "/docs"
     }
-
 
 @app.get("/health", tags=["Health"])
 def health():
