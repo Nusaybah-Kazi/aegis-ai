@@ -32,8 +32,8 @@ from backend.models.gateway import (
     GatewayEvaluateResponse,
     GatewayReviewRequest,
 )
-from backend.services.risk_engine import calculate_risk
 from backend.services.policy_checker import check_policies  # ← NEW
+from backend.services.risk_engine import calculate_risk
 
 router = APIRouter(prefix="/gateway", tags=["Runtime Gateway"])
 

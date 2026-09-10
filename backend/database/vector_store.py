@@ -1,5 +1,6 @@
 # backend/database/vector_store.py
 import os
+
 import chromadb
 from chromadb.utils import embedding_functions
 

@@ -1,5 +1,6 @@
 # backend/routers/compliance.py
 from fastapi import APIRouter, HTTPException, Query
+
 from backend.services.rag_service import query_compliance
 
 router = APIRouter(prefix="/compliance", tags=["Compliance"])
@@ -24,4 +25,4 @@ def ask_compliance(q: str = Query(..., description="The compliance question to a
             "chunks_used": result["chunks_used"]
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"RAG pipeline error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"RAG pipeline error: {e!s}")

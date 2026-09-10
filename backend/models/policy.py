@@ -14,15 +14,15 @@ action values:
   'warn'   — allowed but flagged in audit log
 """
 
-from typing import Optional
+
 from pydantic import BaseModel
 
 
 class PolicyBase(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str | None = None
     rule_type: str                    # 'amount_limit', 'permission', 'data_access'
-    threshold: Optional[float] = None # used when rule_type = 'amount_limit'
+    threshold: float | None = None # used when rule_type = 'amount_limit'
     action: str                       # 'block', 'pause', 'warn'
     applies_to: list[str]             # list of tool names this policy governs
 
@@ -41,7 +41,7 @@ class PolicyResponse(PolicyBase):
 class PolicyCheckResult(BaseModel):
     """Returned by policy_checker.py to the gateway."""
     passed: bool                          # True = no violation, False = policy triggered
-    action: Optional[str] = None          # 'block', 'pause', 'warn' — only set when passed=False
-    violated_policy_id: Optional[str] = None
-    violated_policy_name: Optional[str] = None
-    reason: Optional[str] = None
+    action: str | None = None          # 'block', 'pause', 'warn' — only set when passed=False
+    violated_policy_id: str | None = None
+    violated_policy_name: str | None = None
+    reason: str | None = None

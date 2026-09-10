@@ -35,11 +35,13 @@ def _level_from_score(score: int) -> str:
     return "high"
 
 
-def _recommendation_from_level(level: str, threshold_exceeded: bool) -> str:
+def _recommendation_from_level(level: str, threshold_exceeded: bool, amount_known: bool) -> str:
     if threshold_exceeded:
         return "pause"
     if level == "high":
-        return "block"
+        # A known, quantified amount should go to a human, never a silent block.
+        # Only truly unknown/unquantified actions get hard-blocked.
+        return "pause" if amount_known else "block"
     if level == "medium":
         return "warn"
     return "approve"
@@ -97,7 +99,7 @@ def calculate_risk(
 
     score = min(100, base_score + sensitivity_mod + threshold_mod)
     level = _level_from_score(score)
-    recommendation = _recommendation_from_level(level, threshold_exceeded)
+    recommendation = _recommendation_from_level(level, threshold_exceeded, amount_known=amount is not None)
 
     return {
         "agent_id": agent_id,
