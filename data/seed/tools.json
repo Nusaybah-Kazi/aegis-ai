@@ -5,7 +5,7 @@
     "description": "Processes a customer refund",
     "risk_weight": 80,
     "requires_approval_above": 5000,
-    "data_sensitivity": "high"
+    "data_sensitivity": "medium"
   },
   {
     "id": "tool-002",
