@@ -22,6 +22,10 @@ Returns a dict:
 Fail-closed: if the scan itself errors (timeout, bad JSON from the model),
 the result is treated as "unsafe" so nothing sensitive slips through due
 to a system hiccup rather than an actual content violation.
+
+Retries once on a parse failure before failing closed, since the
+underlying model occasionally returns a malformed or truncated response
+even for simple, safe prompts.
 """
 
 import json
@@ -98,12 +102,49 @@ def _extract_json(text: str) -> dict:
     return json.loads(match.group(0))
 
 
-def scan_prompt(text: str) -> dict:
+def _run_scan_once(text: str) -> dict:
+    """
+    Single attempt: call the model, parse its response.
+    Raises if the call fails or the response can't be parsed/validated —
+    callers are responsible for retrying or failing closed.
+    """
+    raw = chat(
+        system_prompt=SYSTEM_PROMPT,
+        user_message=text,
+        max_tokens=2000,
+    )
+    parsed = _extract_json(raw)
+
+    risk_level = parsed.get("risk_level")
+    if risk_level not in ("safe", "borderline", "unsafe"):
+        raise ValueError(f"model returned invalid risk_level: {risk_level!r}")
+
+    findings = parsed.get("findings", [])
+    if not isinstance(findings, list):
+        findings = [str(findings)]
+
+    reason = parsed.get("reason", "No reason provided.")
+
+    return {
+        "safe": risk_level == "safe",
+        "risk_level": risk_level,
+        "findings": findings,
+        "reason": reason,
+    }
+
+
+def scan_prompt(text: str, max_attempts: int = 2) -> dict:
     """
     Scans a single prompt string for sensitive content.
 
+    Retries up to `max_attempts` times if the model call or response
+    parsing fails (the underlying model occasionally returns a malformed
+    or truncated response even for straightforward prompts). Only fails
+    closed after all attempts are exhausted.
+
     Args:
         text: the raw employee prompt about to be sent to an AI (internal or external)
+        max_attempts: how many times to try the model call before giving up
 
     Returns:
         dict with safe, risk_level, findings, reason
@@ -116,35 +157,17 @@ def scan_prompt(text: str) -> dict:
             "reason": "Empty prompt — nothing to scan.",
         }
 
-    try:
-        raw = chat(
-            system_prompt=SYSTEM_PROMPT,
-            user_message=text,
-            max_tokens=400,
-        )
-        parsed = _extract_json(raw)
+    last_error = "unknown error"
+    for attempt in range(max_attempts):
+        try:
+            return _run_scan_once(text)
+        except Exception as e:
+            last_error = str(e)
+            continue  # try again if attempts remain
 
-        risk_level = parsed.get("risk_level")
-        if risk_level not in ("safe", "borderline", "unsafe"):
-            return _fail_closed(f"model returned invalid risk_level: {risk_level!r}")
-
-        findings = parsed.get("findings", [])
-        if not isinstance(findings, list):
-            findings = [str(findings)]
-
-        reason = parsed.get("reason", "No reason provided.")
-
-        return {
-            "safe": risk_level == "safe",
-            "risk_level": risk_level,
-            "findings": findings,
-            "reason": reason,
-        }
-
-    except Exception as e:
-        # Fail-closed: any error (network, JSON parse, unexpected shape)
-        # results in an "unsafe" verdict, never a silent pass-through.
-        return _fail_closed(str(e))
+    # Fail-closed: every attempt failed (network, JSON parse, unexpected shape)
+    # results in an "unsafe" verdict, never a silent pass-through.
+    return _fail_closed(last_error)
 
 
 if __name__ == "__main__":

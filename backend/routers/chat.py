@@ -4,17 +4,24 @@ chat.py (router)
 ------------------
 Employee-facing AI chat — two flavors:
 
-  POST /chat/internal  — employee talks to Aegis's own Groq-backed assistant
+  POST /chat/internal  — employee talks to Aegis's own Groq-backed assistant.
+                          Safe messages that turn out to be REAL TOOL REQUESTS
+                          (e.g. "process a refund of 50000") are routed through
+                          the same risk_engine + policy_checker used by the
+                          Runtime Gateway, so they can come back approved,
+                          paused for human review, or blocked — instead of
+                          just being answered as chat.
   POST /chat/external  — employee's prompt is proxied to a selected "external"
                           AI provider (simulated via distinct Groq-hosted
                           models, to avoid other vendors' paid APIs or tight
-                          free-tier limits)
+                          free-tier limits). Pure LLM proxy — never triggers
+                          tool actions.
   GET  /chat/history    — employee's own past messages (answered, blocked,
                           or pending admin review)
 
 Every prompt is scanned by sensitivity_scanner.scan_prompt() BEFORE it goes
 anywhere:
-  - safe        → answered immediately
+  - safe        → answered immediately (or routed to tool-call flow, /internal only)
   - unsafe      → blocked, never leaves Aegis
   - borderline  → queued in approval_queue for an admin to review;
                   approving it (in gateway.py) completes the request and
@@ -29,6 +36,9 @@ from pydantic import BaseModel
 from backend.database.db import get_connection
 from backend.dependencies.auth import get_current_user
 from backend.services.groq_client import chat as groq_chat
+from backend.services.intent_parser import parse_intent
+from backend.services.policy_checker import check_policies
+from backend.services.risk_engine import calculate_risk
 from backend.services.sensitivity_scanner import scan_prompt
 
 router = APIRouter(prefix="/chat", tags=["Employee Chat"])
@@ -88,6 +98,95 @@ def _call_external_ai(prompt: str, provider: str) -> str:
     )
 
 
+def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
+    """
+    Runs a detected tool-call intent through the same risk_engine +
+    policy_checker logic used by /gateway/evaluate, and writes the
+    matching audit log / approval_queue entries.
+
+    Returns the dict to send back to the frontend.
+    """
+    cursor.execute("SELECT * FROM tools WHERE name = ?", (tool_name,))
+    row = cursor.fetchone()
+
+    if row is None:
+        # Shouldn't happen — intent_parser already validates against the
+        # tool catalog — but fail closed just in case.
+        params_json = json.dumps({"message": message, "parameters": parameters})
+        _write_audit_log(
+            cursor, user_id, "employee-chat", tool_name, "chat",
+            params_json, 0, "blocked", f"Tool '{tool_name}' not found in catalog"
+        )
+        return {
+            "status": "blocked",
+            "reason": f"Tool '{tool_name}' not found in catalog",
+        }
+
+    tool = dict(row)
+    amount = parameters.get("amount")
+    params_json = json.dumps({"message": message, "parameters": parameters})
+
+    policy_result = check_policies(
+        tool_name=tool_name,
+        tool_data_sensitivity=tool.get("data_sensitivity", "low"),
+        amount=amount,
+    )
+    assessment = calculate_risk(tool, agent_id="employee-chat", amount=amount)
+    recommendation = assessment["recommendation"]
+
+    risk_reason = "; ".join(assessment["factors"])
+    all_reasons = []
+    if not policy_result.passed:
+        all_reasons.append(f"[POLICY] {policy_result.reason}")
+    all_reasons.append(f"[RISK] {risk_reason}")
+    combined_reason = " | ".join(all_reasons)
+
+    if not policy_result.passed and policy_result.action == "block":
+        decision = "blocked"
+    elif not policy_result.passed and policy_result.action == "pause":
+        decision = "blocked" if recommendation == "block" else "paused"
+    elif recommendation in ("approve", "warn"):
+        decision = "approved"
+    elif recommendation == "pause":
+        decision = "paused"
+    else:
+        decision = "blocked"
+
+    if decision == "approved":
+        _write_audit_log(
+            cursor, user_id, "employee-chat", tool_name, "chat",
+            params_json, assessment["risk_score"], decision, combined_reason
+        )
+        return {
+            "status": "answered",
+            "answer": f"Your request was approved and processed. ({combined_reason})",
+        }
+
+    if decision == "paused":
+        queue_id = _queue_for_approval(
+            cursor, user_id, tool_name, params_json, assessment["risk_score"], combined_reason
+        )
+        _write_audit_log(
+            cursor, user_id, "employee-chat", tool_name, "chat",
+            params_json, assessment["risk_score"], decision, combined_reason
+        )
+        return {
+            "status": "paused",
+            "queue_id": queue_id,
+            "reason": combined_reason,
+        }
+
+    # blocked
+    _write_audit_log(
+        cursor, user_id, "employee-chat", tool_name, "chat",
+        params_json, assessment["risk_score"], decision, combined_reason
+    )
+    return {
+        "status": "blocked",
+        "reason": combined_reason,
+    }
+
+
 @router.post("/internal")
 def chat_internal(payload: ChatRequest, current_user: dict = Depends(get_current_user)):
     user_id = current_user["id"]
@@ -131,7 +230,18 @@ def chat_internal(payload: ChatRequest, current_user: dict = Depends(get_current
             "reason": verdict["reason"],
         }
 
-    # safe — answer immediately
+    # safe — check if this is actually a tool-call request before answering as chat
+    intent = parse_intent(message)
+
+    if intent["is_tool_call"]:
+        result = _handle_tool_call(
+            cursor, user_id, intent["tool_name"], intent["parameters"], message
+        )
+        conn.commit()
+        conn.close()
+        return result
+
+    # not a tool call — answer as normal chat
     answer = groq_chat(system_prompt=INTERNAL_SYSTEM_PROMPT, user_message=message, max_tokens=800)
 
     _write_audit_log(
@@ -217,14 +327,14 @@ def chat_history(current_user: dict = Depends(get_current_user)):
 
     cursor.execute("""
         SELECT * FROM audit_log
-        WHERE user_id = ? AND tool_name IN ('internal_ai', 'external_ai')
+        WHERE user_id = ? AND tool_name IN ('internal_ai', 'external_ai', 'process_refund', 'query_order', 'send_notification', 'query_faq', 'create_ticket', 'query_inventory', 'update_inventory', 'send_alert')
         ORDER BY timestamp ASC
     """, (user_id,))
     audit_rows = [dict(row) for row in cursor.fetchall()]
 
     cursor.execute("""
         SELECT * FROM approval_queue
-        WHERE user_id = ? AND tool_name IN ('internal_ai', 'external_ai')
+        WHERE user_id = ? AND tool_name IN ('internal_ai', 'external_ai', 'process_refund', 'query_order', 'send_notification', 'query_faq', 'create_ticket', 'query_inventory', 'update_inventory', 'send_alert')
         ORDER BY created_at ASC
     """, (user_id,))
     queue_rows = [dict(row) for row in cursor.fetchall()]
