@@ -357,7 +357,10 @@ Rules:
 - [x] Frontend: `Login.jsx` and `Register.jsx`
 - [x] Frontend: `ProtectedRoute.jsx`
 - [x] Verify: register as employee → only see Employee view; admin invite code → full Admin dashboard
-
+- [ ] Frontend: `EmployeeChat.jsx` — real page (not placeholder)
+- [ ] Frontend: `MyRequests.jsx` — employee view of their own request history/status
+- [ ] Wire `/requests` route in `App.jsx`
+- [ ] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
 ### Phase 11 — Employee Simulation & Landing Experience
 > Goal: give Employees a chat interface that talks to an agent in plain English, routes through the *existing* Runtime Gateway, and give the whole app a public Landing page to tie it together for a demo.
 
