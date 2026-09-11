@@ -31,6 +31,9 @@ Aegis AI is a **centralized platform** that does three things:
 | **Human-in-the-Loop** | High-risk actions are paused; a human approves or denies |
 | **Multi-Agent Architecture** | Specialized sub-agents (discovery, risk, policy, compliance) coordinated by an orchestrator |
 | **Governance Orchestrator** | The "brain" that routes tasks to the right specialist agent |
+| **Role-Based Access (RBAC)** | Different users see different things — an Employee never sees the Admin approval queue |
+| **JWT (JSON Web Token)** | A signed "wristband" issued at login that proves who a user is on every request |
+| **Intent Parsing** | Turning a free-text chat message into a structured tool call (tool name + parameters) |
 
 ### Why Each Component Matters
 
@@ -50,6 +53,10 @@ User Query / Agent Action
          ↓
   [ Compliance Assistant (RAG) ] ← answer "why was this blocked?"
 ```
+
+### How Phase 10–11 fit into this picture
+
+Everything above already works — but today, *anyone* who opens the app sees *everything* (admin dashboards included), and there's no way to simulate an actual employee talking to an agent. Phase 10 adds real login with two roles (Admin / Employee). Phase 11 gives Employees a chat interface that talks to an AI agent in plain English, with their requests flowing through the exact same Runtime Gateway you already built — so you can demo the whole story end-to-end: employee asks → gateway evaluates → admin reviews if needed → audit trail records it.
 
 ---
 
@@ -73,24 +80,31 @@ aegis-ai/
 │   ├── .env                       ← VITE_API_URL=http://localhost:8000
 │   └── src/
 │       ├── main.jsx               ← React entry point
-│       ├── App.jsx                ← Router + layout
+│       ├── App.jsx                ← Router + layout + role-based route guards
 │       ├── index.css              ← Global styles + Tailwind
 │       ├── api/
-│       │   └── client.js          ← Axios API client (calls FastAPI)
+│       │   └── client.js          ← Axios API client (calls FastAPI, attaches JWT)
+│       ├── context/
+│       │   └── AuthContext.jsx    ← Stores logged-in user + role + JWT app-wide
 │       ├── pages/
-│       │   ├── Dashboard.jsx      ← Agent count, avg risk, recent alerts
-│       │   ├── AgentInventory.jsx ← Table of agents with risk badges
-│       │   ├── AgentDetail.jsx    ← Per-agent risk, tools, dependency map
-│       │   ├── RuntimeGateway.jsx ← Live tool call feed + approval queue
-│       │   ├── AuditTrail.jsx     ← Filterable immutable log viewer
-│       │   └── ComplianceChat.jsx ← Chat interface to RAG assistant
+│       │   ├── Landing.jsx        ← Public marketing/intro page (NEW — Phase 11)
+│       │   ├── Login.jsx          ← Login form (NEW — Phase 10)
+│       │   ├── Register.jsx       ← Signup form + optional admin invite code (NEW — Phase 10)
+│       │   ├── Dashboard.jsx      ← Agent count, avg risk, recent alerts [Admin]
+│       │   ├── AgentInventory.jsx ← Table of agents with risk badges [Admin]
+│       │   ├── AgentDetail.jsx    ← Per-agent risk, tools, dependency map [Admin]
+│       │   ├── RuntimeGateway.jsx ← Live tool call feed + approval queue [Admin]
+│       │   ├── AuditTrail.jsx     ← Filterable immutable log viewer [Admin]
+│       │   ├── ComplianceChat.jsx ← Chat interface to RAG assistant [Admin]
+│       │   └── EmployeeChat.jsx   ← Chat interface for Employees → Gateway (NEW — Phase 11)
 │       └── components/
-│           ├── Sidebar.jsx        ← Navigation sidebar
+│           ├── Sidebar.jsx        ← Navigation sidebar (role-aware)
 │           ├── RiskBadge.jsx      ← Color-coded risk score badge
 │           ├── AgentCard.jsx      ← Agent summary card
 │           ├── PolicyAlert.jsx    ← Policy violation banner
 │           ├── StatCard.jsx       ← Dashboard stat card
-│           └── ApprovalQueue.jsx  ← Human-in-the-loop approval panel
+│           ├── ApprovalQueue.jsx  ← Human-in-the-loop approval panel
+│           └── ProtectedRoute.jsx ← Route wrapper that checks role before rendering (NEW — Phase 10)
 │
 ├── backend/                       ← FastAPI + Uvicorn backend
 │   ├── main.py                    ← FastAPI app + router registration + CORS
@@ -99,19 +113,26 @@ aegis-ai/
 │   │   ├── tools.py               ← Tool/permission registry
 │   │   ├── gateway.py             ← Runtime security gateway
 │   │   ├── audit.py               ← Audit trail endpoints
-│   │   └── compliance.py          ← RAG compliance assistant
+│   │   ├── compliance.py          ← RAG compliance assistant
+│   │   ├── auth.py                ← Register / login / me (NEW — Phase 10)
+│   │   └── chat.py                ← Employee chat → intent parser → gateway (NEW — Phase 11)
 │   ├── models/
 │   │   ├── agent.py               ← Agent data model
 │   │   ├── tool.py                ← Tool/permission model
 │   │   ├── policy.py              ← Policy model
 │   │   ├── audit_log.py           ← Audit log entry model
-│   │   └── risk.py                ← Risk assessment model
+│   │   ├── risk.py                ← Risk assessment model
+│   │   └── user.py                ← User / auth request-response models (NEW — Phase 10)
 │   ├── services/
 │   │   ├── risk_engine.py         ← Risk scoring logic
 │   │   ├── policy_checker.py      ← Policy evaluation logic
 │   │   ├── rag_service.py         ← RAG pipeline (ChromaDB + Groq)
 │   │   ├── audit_service.py       ← Audit trail writer
-│   │   └── groq_client.py         ← Groq API wrapper
+│   │   ├── groq_client.py         ← Groq API wrapper
+│   │   ├── auth_service.py        ← Password hashing + JWT issue/verify (NEW — Phase 10)
+│   │   └── intent_parser.py       ← Free text → {tool_name, parameters} via Groq (NEW — Phase 11)
+│   ├── dependencies/
+│   │   └── auth.py                ← get_current_user / require_admin FastAPI dependencies (NEW — Phase 10)
 │   ├── agents/                    ← Multi-agent architecture
 │   │   ├── orchestrator.py        ← Governance orchestrator
 │   │   ├── discovery_agent.py     ← Finds & catalogs AI systems
@@ -121,7 +142,7 @@ aegis-ai/
 │   │   └── compliance_agent.py    ← Compliance reporting & investigation
 │   └── database/
 │       ├── db.py                  ← SQLite connection (dev) / setup
-│       ├── init_db.py             ← Schema creation + seed data
+│       ├── init_db.py             ← Schema creation + seed data (adds `users` table — Phase 10)
 │       └── vector_store.py        ← ChromaDB vector store setup
 │
 ├── data/
@@ -138,7 +159,8 @@ aegis-ai/
 │   ├── test_risk_engine.py
 │   ├── test_policy_checker.py
 │   ├── test_gateway.py
-│   └── test_rag.py
+│   ├── test_rag.py
+│   └── test_auth.py               ← NEW — Phase 10
 │
 └── docs/
     ├── architecture.md            ← System design notes
@@ -192,7 +214,10 @@ Rules:
 - Explain concepts before writing code.
 - Prefer simple, readable code over clever abstractions.
 - Always tell me which file to create/edit and its exact path.
-- When writing code, output the complete file — no partial snippets.
+- Guide one step/file at a time — wait for my confirmed output before moving on.
+- Never use && in PowerShell — write commands on separate lines.
+- Always use `uv run` (never raw `python script.py`).
+- Run `uv run ruff check --fix` before every commit.
 - Remind me to save and commit to GitHub after each working feature.
 - Follow the build phases in progress.md in order.
 - All dependencies must be free and open source (no paid APIs except Groq free tier).
@@ -238,7 +263,6 @@ Rules:
 ### Phase 1 — Project Scaffold ✅ COMPLETE
 - [x] Create full folder structure (all dirs + empty `__init__.py` files)
 - [x] Create `requirements.txt` with all dependencies
-  - ⚠️ `chromadb` commented out — requires Microsoft C++ Build Tools on Windows; revisit in Phase 6
 - [x] Create `.gitignore`
 - [x] Create `.env.example`
 - [x] Initialize SQLite DB with schema (`init_db.py`) — 5 tables created
@@ -256,9 +280,6 @@ Rules:
 - [x] Build Tool/permission registry endpoints (GET all, GET by id, POST, PUT, DELETE)
 - [x] Build Audit log endpoints (GET all, GET by id, POST, DELETE/clear)
 - [x] Verify: `http://localhost:8000/docs` — Swagger UI shows Agents, Tools, Audit Trail, Health
-- [x] Verify: GET /agents/ returns 3 seeded agents ✅
-- [x] Verify: GET /tools/ returns 8 seeded tools ✅
-- [x] Verify: POST /audit/ creates log entry with timestamp ✅
 - [x] Push to GitHub
 
 ### Phase 3 — Risk Engine ✅ COMPLETE
@@ -275,18 +296,18 @@ Rules:
 - [x] Build `POST /gateway/approve` and `POST /gateway/deny`
 - [x] Verify: simulate refund > ₹5,000 → action paused, appears in queue
 
-### Phase 5 — Policy Engine
+### Phase 5 — Policy Engine ✅ COMPLETE
 - [x] Define policy data model and seed sample policies
 - [x] Build `policy_checker.py` — evaluates action against applicable policies
 - [x] Integrate policy check into gateway flow
 - [x] Verify: policy violation → action blocked with policy reference
 
-### Phase 6 — RAG Compliance Assistant
+### Phase 6 — RAG Compliance Assistant ✅ COMPLETE
 - [x] Install chromadb (1.5.9 — pre-built wheels, no C++ Build Tools needed)
 - [x] Set up ChromaDB vector store (PersistentClient, cosine similarity, all-MiniLM-L6-v2 embeddings)
 - [x] Build document ingestion pipeline (reads `data/policies/`, chunks at 500 chars with 50 char overlap)
 - [x] Build `rag_service.py` — retrieve relevant policy chunks + assemble context
-- [x] Build `groq_client.py` — Groq API wrapper with <think> tag stripping for Qwen3
+- [x] Build `groq_client.py` — Groq API wrapper with `<think>` tag stripping for thinking models
 - [x] Build `GET /compliance/ask?q=...` endpoint
 - [x] Verify: ask "Why was the ₹25,000 refund blocked?" → grounded answer citing refund_policy.md
 
@@ -301,34 +322,58 @@ Rules:
 
 ### Phase 8 — React Frontend ✅ COMPLETE
 - [x] Install Node.js 18+
-- [x] Scaffold React app with Vite: `npm create vite@latest frontend -- --template react`
+- [x] Scaffold React app with Vite
 - [x] Install dependencies: Tailwind CSS v4, React Router, Axios, Recharts, Lucide React
 - [x] Configure Tailwind CSS (v4 — via @tailwindcss/vite plugin, no config file)
 - [x] Build layout: `App.jsx` with sidebar navigation
 - [x] Build `api/client.js` — Axios instance pointing to FastAPI
-- [x] Build `Dashboard.jsx` — stat cards (agent count, avg risk, alerts), risk chart
-- [x] Build `AgentInventory.jsx` — searchable/filterable agent grid with risk arcs
-- [x] Build `AgentDetail.jsx` — tool list, risk history chart, recent events
-- [x] Build `RuntimeGateway.jsx` — live tool call feed + approval queue with approve/deny
-- [x] Build `AuditTrail.jsx` — filterable, paginated log viewer with CSV export
-- [x] Build `ComplianceChat.jsx` — chat interface to RAG assistant with suggested questions
+- [x] Build `Dashboard.jsx`, `AgentInventory.jsx`, `AgentDetail.jsx`, `RuntimeGateway.jsx`, `AuditTrail.jsx`, `ComplianceChat.jsx`
 - [x] Verify: all pages load, gateway approval flow works end-to-end ✅
 
 ### Phase 9 — GitHub + Deployment ✅ COMPLETE
 - [x] Push all code to GitHub (check `.gitignore` — no secrets committed)
 - [x] Write `README.md` with setup instructions
-- [x] Deploy backend to **Render** (free tier — connect GitHub, set env vars)
-- [x] Deploy frontend to **Vercel** (free — connect GitHub, set `VITE_API_URL` to Render URL)
+- [x] Deploy backend to **Render** (free tier)
+- [x] Deploy frontend to **Vercel** (free)
 - [x] Verify: live URLs work, compliance chat answers questions
 
 **Live URLs:**
 - Backend: https://aegis-ai-backend-8ie5.onrender.com
 - Frontend: https://aegis-ai-ivory.vercel.app
 
-### Phase 10 — Polish & Demo
+### Phase 10 — Authentication & Role-Based Access
+> Goal: replace "anyone can see everything" with real accounts and two roles — **Admin** and **Employee** — using free tools only (`passlib`, `python-jose`, your existing SQLite DB, a plain-text invite code in `.env`).
+
+- [ ] Add `users` table to `init_db.py` (id, name, email, password_hash, role, created_at)
+- [ ] Build `backend/models/user.py` — `UserCreate`, `UserLogin`, `UserResponse`
+- [ ] Build `backend/services/auth_service.py` — password hashing (bcrypt via `passlib`) + JWT create/verify (`python-jose`)
+- [ ] Build `backend/routers/auth.py` — `POST /auth/register`, `POST /auth/login`, `GET /auth/me`
+- [ ] Registration logic: blank/wrong invite code → `role = employee`; correct `ADMIN_INVITE_CODE` (from `.env`) → `role = admin`
+- [ ] Build `backend/dependencies/auth.py` — `get_current_user` and `require_admin` FastAPI dependencies
+- [ ] Protect sensitive existing routes with `require_admin` (gateway approve/deny, audit clear, agents/tools write endpoints)
+- [ ] Add `passlib[bcrypt]` and `python-jose[cryptography]` to `requirements.txt`
+- [ ] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
+- [ ] Frontend: `AuthContext.jsx` — stores JWT + role app-wide, attaches JWT to every Axios call
+- [ ] Frontend: `Login.jsx` and `Register.jsx` (register form includes optional "Admin invite code" field)
+- [ ] Frontend: `ProtectedRoute.jsx` — redirects based on role (Employee can't open Admin routes and vice versa)
+- [ ] Verify: register as employee (no code) → only see Employee view; register with correct invite code → see full Admin dashboard
+
+### Phase 11 — Employee Simulation & Landing Experience
+> Goal: give Employees a chat interface that talks to an agent in plain English, routes through the *existing* Runtime Gateway, and give the whole app a public Landing page to tie it together for a demo.
+
+- [ ] Build `frontend/src/pages/Landing.jsx` — public intro page (before login) explaining what Aegis AI does, with Login/Register buttons
+- [ ] Build `backend/services/intent_parser.py` — uses existing `groq_client.py` to turn a free-text message into structured `{tool_name, parameters}` JSON
+- [ ] Build `backend/routers/chat.py` — `POST /chat/employee`: takes free text → intent parser → internally reuses gateway evaluation logic → returns a conversational response (e.g. "Your ₹30,000 refund request has been paused for manager approval.")
+- [ ] Build `frontend/src/pages/EmployeeChat.jsx` — chat UI (message bubbles, input box) wired to `/chat/employee`
+- [ ] Update `Sidebar.jsx` to show only Employee-relevant nav items when role = employee
+- [ ] Verify: as Employee, type "process a ₹30,000 refund for order #123" in chat → see it paused; log in as Admin → see it in the approval queue → approve → Employee's audit trail reflects it
+- [ ] Redeploy both Render (backend) and Vercel (frontend) with new env vars (`JWT_SECRET_KEY`, `ADMIN_INVITE_CODE`)
+
+### Phase 12 — Polish & Demo
 - [ ] Add demo scenario: Customer Refund Agent blocked at ₹25,000
 - [ ] Add demo scenario: Permission change triggers risk reassessment
 - [ ] Add demo scenario: Compliance question answered from policy docs
+- [ ] Add demo scenario: Employee chat request gets paused → Admin approves → Employee sees outcome
 - [ ] Record a short walkthrough video (optional)
 - [ ] Update `docs/demo_scenarios.md`
 
@@ -391,30 +436,28 @@ to scale with amount ratio.
 (install C++ Build Tools, ChromaDB, ingest policy docs, build /compliance/ask endpoint)
 
 ### 06-Sep-2026 — Phase 6
-**What I learned:** RAG pipeline: chunk policy docs → embed into ChromaDB → 
-similarity search on query → inject chunks as context → LLM answers from 
-your docs, not training data. ChromaDB 1.5.9 ships pre-built wheels so 
-no C++ Build Tools needed. Qwen3 models on Groq are thinking models that 
-wrap reasoning in <think>...</think> tags — strip them with regex. Thinking 
-models need large max_tokens (2000+) or they exhaust the budget on reasoning 
-before writing the answer. Model IDs change — always verify against 
-client.models.list() rather than hardcoding from docs.
-**Where I got stuck:** llama3-8b-8192 decommissioned; llama-3.1-8b-instant 
-not found; qwen3 thinking tags eating entire token budget at 600 max_tokens.
-**How I solved it:** Listed available models via Groq client API; switched to 
-qwen/qwen3.6-27b; stripped <think> tags with re.sub; bumped max_tokens to 2000.
+**What I learned:** RAG pipeline: chunk policy docs → embed into ChromaDB →
+similarity search on query → inject chunks as context → LLM answers from
+your docs, not training data. ChromaDB 1.5.9 ships pre-built wheels so
+no C++ Build Tools needed. Thinking models on Groq wrap reasoning in
+<think>...</think> tags — strip them with regex. Thinking models need large
+max_tokens (2000+) or they exhaust the budget on reasoning before writing
+the answer. Model IDs change — always verify against client.models.list()
+rather than hardcoding from docs.
+**Where I got stuck:** llama3-8b-8192 decommissioned; a thinking model's
+`<think>` tags were eating the entire token budget at 600 max_tokens.
+**How I solved it:** Listed available models via Groq client API; stripped
+`<think>` tags with re.sub; bumped max_tokens to 2000.
 **Next session goal:** Phase 7 — Multi-Agent Architecture (orchestrator + specialist agents)
 
 ### 06-Sep-2026 — Phase 6 verification
-**What I learned:** qwen3.6 as a thinking model silently produces empty
-answers when max_tokens is too low for its reasoning + response combined,
-and Groq's free-tier OTPM cap (1000/min) rejects requests where max_tokens
-is set too high. Switched default model to openai/gpt-oss-20b to avoid the
-tradeoff entirely.
+**What I learned:** A thinking model can silently produce empty answers when
+max_tokens is too low for its reasoning + response combined, while Groq's
+free-tier OTPM cap (1000/min) rejects requests where max_tokens is set too
+high. Switched default model to openai/gpt-oss-20b to avoid the tradeoff entirely.
 **Where I got stuck:** /compliance/ask returned 200 with an empty "answer"
 field — no error, just silent failure. Needed to inspect raw JSON to catch it.
-**How I solved it:** Swapped model in groq_client.py from qwen/qwen3.6-27b
-to openai/gpt-oss-20b.
+**How I solved it:** Swapped the default model in groq_client.py.
 **Next session goal:** Phase 7 — Multi-Agent Architecture
 
 ### 06-Sep-2026 — Phase 7
@@ -423,21 +466,14 @@ in, matching agent function out, wrapped in a consistent envelope. Built
 5 specialist agents on top of existing services (discovery, risk, policy,
 runtime, compliance) rather than duplicating logic. Discovery/risk/policy
 agents are read-only reporters by design — they never write fixes back to
-the DB; that stays a human decision. Also hit a real Groq issue while
-re-verifying Phase 6: qwen3.6 (a thinking model) silently returns an empty
-answer when max_tokens is too low for its reasoning + response combined,
-while Groq's free-tier OTPM cap rejects the request if max_tokens is set
-too high. Switched groq_client.py's default model to openai/gpt-oss-20b
-to avoid the tradeoff.
+the DB; that stays a human decision.
 **Where I got stuck:** Running new agent files directly with
 `python path/to/file.py` failed with `ModuleNotFoundError: No module named
 'backend'` — Python only adds the script's own directory to sys.path, not
 the project root. Fixed by running as a module instead:
 `python -m backend.agents.discovery_agent`.
 **How I solved it:** N/A (see above)
-**Next session goal:** Phase 8 — React Frontend (Vite scaffold, Tailwind,
-Dashboard/AgentInventory/AgentDetail/RuntimeGateway/AuditTrail/
-ComplianceChat pages)
+**Next session goal:** Phase 8 — React Frontend
 
 ### 09-Sep-2026 — Phase 8
 **What I learned:** Tailwind v4 drops tailwind.config.js entirely — theme is defined
@@ -480,11 +516,17 @@ the repo to my own GitHub account for Vercel access; set Root Directory to
 `frontend` in Vercel, which correctly auto-detected Vite afterward.
 **Also fixed:** accidentally pasted a real GROQ_API_KEY into chat — rotated
 the key immediately and updated it in both local .env and Render's env vars.
-**Next session goal:** Phase 10 — Polish & Demo (demo scenarios, walkthrough)
-— plus revisit two known gaps: risk_engine doesn't actually "block" refunds
-over ₹25,000 despite refund_policy.md now claiming it does; and
-client.js's orchestrate() calls a POST /orchestrator/run endpoint that
-doesn't exist yet.
+**Next session goal:** Fix two known gaps found during Phase 9 verification:
+risk_engine wasn't actually blocking refunds over ₹25,000 despite
+refund_policy.md claiming it does; and client.js's orchestrate() called a
+POST /orchestrator/run endpoint that didn't exist yet.
+
+### 10-Sep-2026 — Bug fixes (pre–Phase 10)
+**What I learned:** Both known gaps from Phase 9 verification are now fixed.
+**Where I got stuck:** N/A
+**How I solved it:** N/A
+**Next session goal:** Phase 10 — Authentication & Role-Based Access
+(users table, password hashing, JWT, admin invite code, protecting existing routes)
 
 ---
 
@@ -503,6 +545,8 @@ doesn't exist yet.
 | Database (dev) | SQLite | Built into Python |
 | Vector store (RAG) | ChromaDB | Open source, runs locally |
 | LLM API | Groq API | Free tier, no card needed |
+| Password hashing | passlib (bcrypt) | Open source |
+| Auth tokens | python-jose (JWT) | Open source |
 | IDE | VS Code | Free |
 | Version control | GitHub | Free public/private repos |
 | Backend deployment | Render | Free tier |
@@ -519,9 +563,15 @@ doesn't exist yet.
 | `backend/services/policy_checker.py` | Policy evaluation |
 | `backend/agents/orchestrator.py` | Multi-agent coordinator |
 | `backend/services/rag_service.py` | RAG pipeline |
-| `frontend/src/App.jsx` | React entry point + routing |
+| `backend/services/auth_service.py` | Password hashing + JWT (Phase 10) |
+| `backend/services/intent_parser.py` | Chat text → structured tool call (Phase 11) |
+| `backend/dependencies/auth.py` | Route protection (Phase 10) |
+| `frontend/src/App.jsx` | React entry point + routing + role guards |
+| `frontend/src/context/AuthContext.jsx` | App-wide auth/role state (Phase 10) |
 | `frontend/src/api/client.js` | All API calls to FastAPI |
-| `frontend/src/pages/Dashboard.jsx` | Main dashboard page |
+| `frontend/src/pages/Landing.jsx` | Public intro page (Phase 11) |
+| `frontend/src/pages/EmployeeChat.jsx` | Employee agent chat (Phase 11) |
+| `frontend/src/pages/Dashboard.jsx` | Main admin dashboard page |
 | `data/policies/` | Drop new policy docs here for RAG |
 | `.env` | Your secrets — NEVER commit this |
 
@@ -530,17 +580,17 @@ doesn't exist yet.
 ## 🚦 Quick Start Commands
 
 ```bash
-# 1. Activate conda environment
-conda activate aegis-ai
+# 1. Activate environment
+.venv\Scripts\activate
 
 # 2. Install Python dependencies
 uv pip install -r requirements.txt
 
 # 3. Set up database
-python backend/database/init_db.py
+uv run python backend/database/init_db.py
 
 # 4. Start backend (terminal 1)
-uvicorn backend.main:app --reload --port 8000
+uv run uvicorn backend.main:app --reload --port 8000
 
 # 5. Start frontend (terminal 2)
 cd frontend
@@ -555,8 +605,7 @@ npm run dev
 
 ---
 
-*Last updated: 05-Sep-2026 — Phase 4 (Runtime Gateway) complete: evaluate/approve/deny endpoints, approval queue, all four decision paths (approve/pause→approve/pause→deny/block) tested and verified via Swagger UI.*
-
-*Last updated: 06-Sep-2026 — Phase 7 (Multi-Agent Architecture) complete: orchestrator + discovery/risk/policy/runtime/compliance agents built, tested individually and through orchestrator routing, all committed and pushed.*
-
+*Last updated: 05-Sep-2026 — Phase 4 (Runtime Gateway) complete.*
+*Last updated: 06-Sep-2026 — Phase 7 (Multi-Agent Architecture) complete.*
 *Last updated: 09-Sep-2026 — Phase 9 (GitHub + Deployment) complete: backend live on Render, frontend live on Vercel, compliance chat verified working end-to-end in production.*
+*Last updated: 10-Sep-2026 — Known Phase 9 bugs fixed. Added Phase 10 (Authentication & Role-Based Access) and Phase 11 (Employee Simulation & Landing Experience); Polish & Demo moved to Phase 12 (last).*

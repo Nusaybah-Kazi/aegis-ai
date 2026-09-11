@@ -4,15 +4,15 @@ uvicorn==0.30.6
 python-dotenv==1.0.1
 pydantic==2.11.5
 pydantic-core==2.33.2
-
+bcrypt==4.0.1
 # Database
 aiosqlite==0.20.0
 
 # Vector store (RAG) — Phase 6
 # Note: chromadb 1.5.9+ ships pre-built wheels; no C++ Build Tools needed on Windows
 chromadb==1.5.9
-numpy<2.0
-
+numpy>=2.0,<3.0
+email-validator==2.2.0
 # Embeddings (auto-downloaded by chromadb on first run — cached in ~/.cache/chroma)
 # all-MiniLM-L6-v2 model (~79MB) is downloaded once via onnxruntime
 onnxruntime==1.29.0
@@ -28,3 +28,5 @@ httpx==0.27.0
 # Testing
 pytest==8.3.2
 pytest-asyncio==0.23.8
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0

@@ -1,3 +1,4 @@
+# backend/main.py
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,6 +6,7 @@ from backend.database.init_db import init_db
 from backend.database.vector_store import ingest_policies
 from backend.routers import agents, audit, gateway, tools
 from backend.routers.compliance import router as compliance_router
+from backend.routers.auth import router as auth_router
 
 app = FastAPI(
     title="Aegis AI — Governance & Compliance API",
@@ -12,7 +14,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS must be added before routers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,6 +23,7 @@ app.add_middleware(
 )
 
 # Routers
+app.include_router(auth_router)
 app.include_router(agents.router)
 app.include_router(tools.router)
 app.include_router(audit.router)
