@@ -171,7 +171,8 @@ def init_db():
         print("ℹ️  Admin already exists — skipping seed.")
 
     conn.commit()
-        # ── Migrations (safe to run on every boot) ────────────────────────────────
+
+    # ── Migrations (safe to run on every boot) ──────────────────────────────────
     existing_audit_cols = [
         row[1] for row in conn.execute("PRAGMA table_info(audit_log)").fetchall()
     ]
@@ -185,6 +186,10 @@ def init_db():
     if "user_id" not in existing_queue_cols:
         conn.execute("ALTER TABLE approval_queue ADD COLUMN user_id INTEGER")
         print("✅ Migration: added user_id to approval_queue")
+
+    if "response" not in existing_queue_cols:
+        conn.execute("ALTER TABLE approval_queue ADD COLUMN response TEXT")
+        print("✅ Migration: added response to approval_queue")
 
     conn.commit()
     print("Migrations complete.")
