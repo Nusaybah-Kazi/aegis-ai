@@ -1,11 +1,10 @@
 # backend/main.py
-from backend.routers import chat
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database.init_db import init_db
 from backend.database.vector_store import ingest_policies
-from backend.routers import agents, audit, gateway, tools
+from backend.routers import agents, audit, chat, gateway, tools
 from backend.routers.auth import router as auth_router
 from backend.routers.compliance import router as compliance_router
 

@@ -2,9 +2,9 @@ import json
 
 # NEW
 from fastapi import APIRouter, Depends, HTTPException
-from backend.dependencies.auth import require_admin
 
 from backend.database.db import get_connection
+from backend.dependencies.auth import require_admin
 from backend.models.agent import AgentCreate, AgentResponse, AgentUpdate
 
 router = APIRouter(prefix="/agents", tags=["Agents"])

@@ -3,6 +3,7 @@
 # NEW
 # NEW
 from fastapi import APIRouter, Depends, HTTPException, Query
+
 from backend.database.db import get_connection
 from backend.dependencies.auth import get_current_user, require_admin
 from backend.models.audit_log import AuditLogEntry, AuditLogResponse

@@ -2,7 +2,7 @@
 import os
 
 from dotenv import load_dotenv
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.database.db import get_connection
 from backend.dependencies.auth import get_current_user
@@ -12,7 +12,6 @@ from backend.services.auth_service import (
     hash_password,
     verify_password,
 )
-from fastapi import Depends
 
 load_dotenv()
 

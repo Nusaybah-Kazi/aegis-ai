@@ -1,13 +1,13 @@
 # backend/models/user.py
+
 from pydantic import BaseModel, EmailStr
-from typing import Optional
 
 
 class UserCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
-    invite_code: Optional[str] = None   # if matches ADMIN_INVITE_CODE → admin
+    invite_code: str | None = None   # if matches ADMIN_INVITE_CODE → admin
 
 
 class UserLogin(BaseModel):

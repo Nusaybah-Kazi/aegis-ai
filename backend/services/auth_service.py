@@ -1,7 +1,6 @@
 # backend/services/auth_service.py
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Optional
 
 import bcrypt
 from dotenv import load_dotenv
@@ -29,7 +28,7 @@ def create_access_token(data: dict) -> str:
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=ALGORITHM)
 
 
-def decode_token(token: str) -> Optional[dict]:
+def decode_token(token: str) -> dict | None:
     try:
         return jwt.decode(token, JWT_SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:

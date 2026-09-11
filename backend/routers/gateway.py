@@ -25,9 +25,9 @@ from datetime import datetime, timezone
 
 # NEW
 from fastapi import APIRouter, Depends, HTTPException
-from backend.dependencies.auth import require_admin
-from backend.dependencies.auth import require_admin, get_current_user_optional
+
 from backend.database.db import get_connection
+from backend.dependencies.auth import get_current_user_optional, require_admin
 from backend.models.gateway import (
     ApprovalQueueResponse,
     GatewayEvaluateRequest,
