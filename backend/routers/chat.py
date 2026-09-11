@@ -5,9 +5,10 @@ chat.py (router)
 Employee-facing AI chat — two flavors:
 
   POST /chat/internal  — employee talks to Aegis's own Groq-backed assistant
-  POST /chat/external  — employee's prompt is proxied to an "external" AI
-                          (currently simulated via a second Groq model, to
-                          avoid other providers' tight free-tier limits)
+  POST /chat/external  — employee's prompt is proxied to a selected "external"
+                          AI provider (simulated via distinct Groq-hosted
+                          models, to avoid other vendors' paid APIs or tight
+                          free-tier limits)
   GET  /chat/history    — employee's own past messages (answered, blocked,
                           or pending admin review)
 
@@ -42,7 +43,17 @@ class ChatRequest(BaseModel):
 
 class ExternalChatRequest(BaseModel):
     message: str
-    provider: str = "groq"   # 'groq' (simulated external), 'gemini', 'chatgpt'
+    provider: str = "gpt-oss-fast"   # 'gpt-oss-fast', 'gpt-oss-reasoning', 'qwen' — all Groq-hosted, no external vendor keys
+
+
+# All three are confirmed active on Groq's production model list as of Sep 2026.
+# llama-3.1-8b-instant and llama-3.3-70b-versatile were deprecated Aug 16, 2026 —
+# do not use them.
+PROVIDER_MODELS = {
+    "gpt-oss-fast": "openai/gpt-oss-20b",
+    "gpt-oss-reasoning": "openai/gpt-oss-120b",
+    "qwen": "qwen/qwen3.6-27b",
+}
 
 
 def _write_audit_log(cursor, user_id, agent_id, tool_name, action, parameters, risk_score, decision, reason):
@@ -60,17 +71,19 @@ def _queue_for_approval(cursor, user_id, tool_name, parameters, risk_score, reas
     return cursor.lastrowid
 
 
-def _call_external_ai(prompt: str) -> str:
+def _call_external_ai(prompt: str, provider: str) -> str:
     """
-    Simulates an external AI provider using Groq's API with a different
-    model than the internal assistant. This preserves the security-boundary
-    concept (a separate provider call, gated by the scanner) while avoiding
-    other providers' tight free-tier rate limits.
+    Simulates an external AI provider using a distinct Groq-hosted model per
+    provider choice. This preserves the security-boundary concept (a separate
+    provider call, gated by the scanner) while avoiding other vendors' paid
+    APIs or tight free-tier limits. All three model IDs are confirmed active
+    on Groq's production model list.
     """
+    model_id = PROVIDER_MODELS[provider]
     return groq_chat(
         system_prompt="You are an external AI assistant. Answer helpfully and concisely.",
         user_message=prompt,
-        model="llama-3.1-8b-instant",   # different model than the internal assistant
+        model=model_id,
         max_tokens=800,
     )
 
@@ -175,11 +188,9 @@ def chat_external(payload: ExternalChatRequest, current_user: dict = Depends(get
             "reason": verdict["reason"],
         }
 
-    # safe — proxy to the "external" provider
-    if provider in ("groq", "gemini", "chatgpt"):
-        # For now all "external" providers route through Groq with a
-        # distinct model — see _call_external_ai for why.
-        answer = _call_external_ai(message)
+    # safe — proxy to the selected provider (all Groq-hosted, no paid vendor keys)
+    if provider in PROVIDER_MODELS:
+        answer = _call_external_ai(message, provider)
     else:
         conn.close()
         return {

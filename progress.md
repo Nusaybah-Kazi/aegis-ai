@@ -388,11 +388,9 @@ Rules:
       `POST /chat/external` — employee sends prompt to any external AI
         (ChatGPT/Gemini/etc); prompt scanned first; if clean, Aegis proxies
         using company-managed API key from `.env`; response returned to employee
-- [ ] Add `OPENAI_API_KEY` and `GOOGLE_API_KEY` to `.env.example`
-- [ ] Add `openai` and `google-generativeai` to `requirements.txt`
 - [x] All chat interactions logged to `audit_log` with `user_id`, `tool_name=internal_ai`
       or `tool_name=external_ai`, decision, findings, and risk score
-- [ ] External AI: if provider key not configured in `.env` → return clear
+- [x] External AI: if provider key not configured in `.env` → return clear
       "provider not available" message to employee
 - [x] Add `response` column to `approval_queue` via migration in `init_db.py`
       (stores the AI's answer once a paused chat item is approved)
