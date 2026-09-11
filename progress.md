@@ -364,12 +364,12 @@ Rules:
 - [x] Frontend: `Login.jsx` and `Register.jsx` (register form includes optional "Admin invite code" field)
 - [x] Frontend: `ProtectedRoute.jsx` — redirects based on role
 - [x] Frontend: role-aware `Sidebar.jsx` — admin sees platform nav, employee sees workspace nav
-- [ ] Add `user_id` column to `audit_log` and `approval_queue` tables (tracks which employee triggered each entry)
-- [ ] `backend/routers/chat.py` — attach `user_id` to every gateway evaluation from employees
-- [ ] Frontend: `MyRequests.jsx` — employee sees only their own audit entries filtered by user_id
-- [ ] Wire `/requests` route in `App.jsx`
-- [ ] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
-- [ ] Verify: employee sees only their own requests; admin sees all
+- [x] Add `user_id` column to `audit_log` and `approval_queue` tables (tracks which employee triggered each entry)
+- [x] `backend/routers/chat.py` — attach `user_id` to every gateway evaluation from employees
+- [x] Frontend: `MyRequests.jsx` — employee sees only their own audit entries filtered by user_id
+- [x] Wire `/requests` route in `App.jsx`
+- [x] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
+- [x] Verify: employee sees only their own requests; admin sees all
 
 ### Phase 11 — AI Chat, External AI Monitor & Sensitivity Scanner
 > Goal: give employees a built-in AI assistant and an external AI proxy (ChatGPT, Gemini, any provider), both routed through a sensitivity scanner that detects PII, credentials, company data, and customer data before any prompt leaves the org.
