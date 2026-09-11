@@ -3,15 +3,16 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Sidebar from './components/Sidebar'
+import Landing from "./pages/Landing";
 
 import MyRequests from './pages/MyRequests'
-import Login          from './pages/Login'
-import Register       from './pages/Register'
-import Dashboard      from './pages/Dashboard'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import Dashboard from './pages/Dashboard'
 import AgentInventory from './pages/AgentInventory'
-import AgentDetail    from './pages/AgentDetail'
+import AgentDetail from './pages/AgentDetail'
 import RuntimeGateway from './pages/RuntimeGateway'
-import AuditTrail     from './pages/AuditTrail'
+import AuditTrail from './pages/AuditTrail'
 import ComplianceChat from './pages/ComplianceChat'
 
 function AppShell({ children }) {
@@ -37,9 +38,13 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
-        <Route path="/login"    element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
+        <Route path="/" element={<Landing />} />
         {/* Root redirect */}
         <Route path="/" element={<RootRedirect />} />
 
