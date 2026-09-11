@@ -51,11 +51,25 @@ Respond with ONLY a JSON object, no other text, no markdown fences, in this exac
 {"risk_level": "safe", "findings": [], "reason": "short explanation"}
 
 risk_level must be exactly one of: "safe", "borderline", "unsafe"
+
 - "safe": no sensitive content detected, including general policy/process questions
-- "borderline": ambiguous or partial sensitive content (e.g. a name alone with no
-  other context, vague references that might be internal)
-- "unsafe": clear PII, credentials, specific customer data, or confidential/unpublished
-  company internals present
+
+- "borderline": there IS some sensitive-sounding content, but it is vague, incomplete,
+  or low-severity enough that a human should quickly judge intent rather than an
+  automatic hard block. Use this for:
+    * A first name alone with a vague business reference (no numbers, no full details)
+      e.g. "What's John's status on the Henderson deal?"
+    * A general mention of "the deal" / "the project" / "the client" without any
+      concrete figures, documents, or identifying details
+    * Ambiguous phrasing where sensitive intent is possible but not certain
+
+- "unsafe": CONCRETE, CLEAR sensitive content is present — an actual credential
+  (API key, password, token), a full email address or phone number, specific
+  financial figures, or an explicit request to exfiltrate/send sensitive data
+  somewhere. Reserve this for cases with no reasonable doubt.
+
+When in doubt between "borderline" and "unsafe", prefer "borderline" — hard blocks
+should be reserved for unambiguous violations only.
 
 findings must be a list of short strings naming what was found (e.g. "email address", "API key").
 If risk_level is "safe", findings must be an empty list.
