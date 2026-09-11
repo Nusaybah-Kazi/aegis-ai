@@ -96,7 +96,11 @@ aegis-ai/
 │       │   ├── RuntimeGateway.jsx ← Live tool call feed + approval queue [Admin]
 │       │   ├── AuditTrail.jsx     ← Filterable immutable log viewer [Admin]
 │       │   ├── ComplianceChat.jsx ← Chat interface to RAG assistant [Admin]
-│       │   └── EmployeeChat.jsx   ← Chat interface for Employees → Gateway (NEW — Phase 11)
+│       │   ├── EmployeeChat.jsx   ← Chat interface for Employees → Gateway (NEW — Phase 11)
+|       │   ├── Landing.jsx      ← Public intro page (Phase 11)
+│       |   ├── EmployeeChat.jsx ← Internal AI chat (Phase 11)
+│       |   ├── ExternalAI.jsx   ← External AI proxy UI (Phase 11)
+│       |   └── MyRequests.jsx   ← Employee request history (Phase 10 Milestone D)
 │       └── components/
 │           ├── Sidebar.jsx        ← Navigation sidebar (role-aware)
 │           ├── RiskBadge.jsx      ← Color-coded risk score badge
@@ -109,6 +113,7 @@ aegis-ai/
 ├── backend/                       ← FastAPI + Uvicorn backend
 │   ├── main.py                    ← FastAPI app + router registration + CORS
 │   ├── routers/
+│   |   ├── chat.py   ← Internal AI + External AI proxy endpoints (Phase 11)
 │   │   ├── agents.py              ← CRUD for agent inventory
 │   │   ├── tools.py               ← Tool/permission registry
 │   │   ├── gateway.py             ← Runtime security gateway
@@ -124,6 +129,7 @@ aegis-ai/
 │   │   ├── risk.py                ← Risk assessment model
 │   │   └── user.py                ← User / auth request-response models (NEW — Phase 10)
 │   ├── services/
+|   │   ├── sensitivity_scanner.py  ← PII/credentials/company data detector (Phase 11)
 │   │   ├── risk_engine.py         ← Risk scoring logic
 │   │   ├── policy_checker.py      ← Policy evaluation logic
 │   │   ├── rag_service.py         ← RAG pipeline (ChromaDB + Groq)
@@ -342,41 +348,79 @@ Rules:
 - Frontend: https://aegis-ai-ivory.vercel.app
 
 ### Phase 10 — Authentication & Role-Based Access
-> Goal: replace "anyone can see everything" with real accounts and two roles — **Admin** and **Employee** — using free tools only (`passlib`, `python-jose`, your existing SQLite DB, a plain-text invite code in `.env`).
+> Goal: replace "anyone can see everything" with real accounts and two roles — **Admin** and **Employee** — using free tools only (`bcrypt`, `python-jose`, existing SQLite DB, plain-text invite code in `.env`).
 
-- [x] Add `users` table to `init_db.py`
-- [x] Build `backend/models/user.py`
-- [x] Build `backend/services/auth_service.py`
-- [x] Build `backend/routers/auth.py`
-- [x] Registration logic: invite code → admin, blank → employee
-- [x] Build `backend/dependencies/auth.py`
-- [x] Protect sensitive existing routes with `require_admin`
+- [x] Add `users` table to `init_db.py` (id, name, email, password_hash, role, created_at)
+- [x] Build `backend/models/user.py` — `UserCreate`, `UserLogin`, `UserResponse`
+- [x] Build `backend/services/auth_service.py` — password hashing (bcrypt) + JWT create/verify (python-jose)
+- [x] Build `backend/routers/auth.py` — `POST /auth/register`, `POST /auth/login`, `GET /auth/me`
+- [x] Registration logic: blank/wrong invite code → `role = employee`; correct `ADMIN_INVITE_CODE` → `role = admin`
+- [x] Build `backend/dependencies/auth.py` — `get_current_user` and `require_admin` FastAPI dependencies
+- [x] Protect sensitive existing routes with `require_admin` (gateway approve/deny, agents/tools write endpoints)
+- [x] Audit trail made permanently immutable — `DELETE /audit/clear` removed entirely
 - [x] Add `bcrypt==4.0.1`, `python-jose[cryptography]`, `email-validator` to `requirements.txt`
 - [x] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
-- [x] Frontend: `AuthContext.jsx`
-- [x] Frontend: `Login.jsx` and `Register.jsx`
-- [x] Frontend: `ProtectedRoute.jsx`
-- [x] Verify: register as employee → only see Employee view; admin invite code → full Admin dashboard
-- [ ] Frontend: `EmployeeChat.jsx` — real page (not placeholder)
-- [ ] Frontend: `MyRequests.jsx` — employee view of their own request history/status
+- [x] Frontend: `AuthContext.jsx` — stores JWT + role app-wide, attaches JWT to every Axios call
+- [x] Frontend: `Login.jsx` and `Register.jsx` (register form includes optional "Admin invite code" field)
+- [x] Frontend: `ProtectedRoute.jsx` — redirects based on role
+- [x] Frontend: role-aware `Sidebar.jsx` — admin sees platform nav, employee sees workspace nav
+- [ ] Add `user_id` column to `audit_log` and `approval_queue` tables (tracks which employee triggered each entry)
+- [ ] `backend/routers/chat.py` — attach `user_id` to every gateway evaluation from employees
+- [ ] Frontend: `MyRequests.jsx` — employee sees only their own audit entries filtered by user_id
 - [ ] Wire `/requests` route in `App.jsx`
 - [ ] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
-### Phase 11 — Employee Simulation & Landing Experience
-> Goal: give Employees a chat interface that talks to an agent in plain English, routes through the *existing* Runtime Gateway, and give the whole app a public Landing page to tie it together for a demo.
+- [ ] Verify: employee sees only their own requests; admin sees all
 
-- [ ] Build `frontend/src/pages/Landing.jsx` — public intro page (before login) explaining what Aegis AI does, with Login/Register buttons
-- [ ] Build `backend/services/intent_parser.py` — uses existing `groq_client.py` to turn a free-text message into structured `{tool_name, parameters}` JSON
-- [ ] Build `backend/routers/chat.py` — `POST /chat/employee`: takes free text → intent parser → internally reuses gateway evaluation logic → returns a conversational response (e.g. "Your ₹30,000 refund request has been paused for manager approval.")
-- [ ] Build `frontend/src/pages/EmployeeChat.jsx` — chat UI (message bubbles, input box) wired to `/chat/employee`
-- [ ] Update `Sidebar.jsx` to show only Employee-relevant nav items when role = employee
-- [ ] Verify: as Employee, type "process a ₹30,000 refund for order #123" in chat → see it paused; log in as Admin → see it in the approval queue → approve → Employee's audit trail reflects it
-- [ ] Redeploy both Render (backend) and Vercel (frontend) with new env vars (`JWT_SECRET_KEY`, `ADMIN_INVITE_CODE`)
+### Phase 11 — AI Chat, External AI Monitor & Sensitivity Scanner
+> Goal: give employees a built-in AI assistant and an external AI proxy (ChatGPT, Gemini, any provider), both routed through a sensitivity scanner that detects PII, credentials, company data, and customer data before any prompt leaves the org.
+
+#### Backend
+- [ ] Build `backend/services/sensitivity_scanner.py`
+      — uses Groq to scan every prompt for 4 categories:
+        PII (names, emails, phone, Aadhaar),
+        Company internals (revenue, strategy, product plans),
+        Customer data (orders, transactions, customer records),
+        Credentials (passwords, API keys, tokens)
+      — returns: `{safe: bool, risk_level, findings: [], reason}`
+- [ ] Build `backend/routers/chat.py` with two endpoints:
+      `POST /chat/internal` — employee chats with Groq AI; prompt scanned first;
+        clean → LLM answers; sensitive → blocked; borderline → paused for admin
+      `POST /chat/external` — employee sends prompt to any external AI
+        (ChatGPT/Gemini/etc); prompt scanned first; if clean, Aegis proxies
+        using company-managed API key from `.env`; response returned to employee
+- [ ] Add `OPENAI_API_KEY` and `GOOGLE_API_KEY` to `.env.example`
+- [ ] Add `openai` and `google-generativeai` to `requirements.txt`
+- [ ] All chat interactions logged to `audit_log` with `user_id`, `tool_name=internal_ai`
+      or `tool_name=external_ai`, decision, findings, and risk score
+- [ ] External AI: if provider key not configured in `.env` → return clear
+      "provider not available" message to employee
+
+#### Frontend
+- [ ] Build `frontend/src/pages/EmployeeChat.jsx`
+      — tabbed UI: "AI Assistant" tab (internal Groq) + "External AI" tab
+      — Internal tab: chat bubbles, input box, blocked messages shown in red with reason
+      — External tab: provider selector (ChatGPT / Gemini / Groq), prompt input,
+        safety verdict shown before/alongside response, blocked prompts explained
+- [ ] Build `frontend/src/pages/MyRequests.jsx`
+      — table of employee's own audit entries (timestamp, tool, decision, risk, reason)
+      — filter by decision (approved / blocked / paused)
+      — paused entries show "Pending admin review" status badge
+- [ ] Wire `/requests` route in `App.jsx`
+- [ ] Update `Sidebar.jsx` employee nav:
+      AI Assistant → `/chat`, External AI → `/external`, My Requests → `/requests`
+
+#### Landing Page
+- [ ] Build `frontend/src/pages/Landing.jsx`
+      — public page (no login needed) explaining what Aegis AI does
+      — sections: hero, how it works (3 steps), key features, Login/Register CTAs
+- [ ] Wire `/` to `Landing.jsx` for unauthenticated users, redirect to role home if logged in
 
 ### Phase 12 — Polish & Demo
-- [ ] Add demo scenario: Customer Refund Agent blocked at ₹25,000
-- [ ] Add demo scenario: Permission change triggers risk reassessment
+- [ ] Add demo scenario: Employee sends prompt with customer PII → blocked by scanner
+- [ ] Add demo scenario: Employee uses External AI (ChatGPT) → Aegis scans → proxies → returns response
+- [ ] Add demo scenario: High-risk request paused → Admin approves → Employee sees outcome in My Requests
 - [ ] Add demo scenario: Compliance question answered from policy docs
-- [ ] Add demo scenario: Employee chat request gets paused → Admin approves → Employee sees outcome
+- [ ] Add demo scenario: Permission change triggers risk reassessment
 - [ ] Record a short walkthrough video (optional)
 - [ ] Update `docs/demo_scenarios.md`
 
