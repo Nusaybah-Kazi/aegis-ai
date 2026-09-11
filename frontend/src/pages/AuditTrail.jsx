@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Search, Filter, Download, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { getAuditLogs, clearAuditLogs } from '../api/client'
+// NEW
+import { Search, Filter, Download, ChevronLeft, ChevronRight } from 'lucide-react'
+// NEW
+import { getAuditLogs } from '../api/client'
 import RiskBadge from '../components/RiskBadge'
 import PageHeader from '../components/PageHeader'
 
@@ -31,7 +33,6 @@ export default function AuditTrail() {
   const [decision, setDecision] = useState('all')
   const [page,     setPage]     = useState(1)
   const [expanded, setExpanded] = useState(null)
-  const [clearing, setClearing] = useState(false)
 
   function load() {
     setLoading(true)
@@ -52,12 +53,6 @@ export default function AuditTrail() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const paged      = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-  async function handleClear() {
-    if (!confirm('Clear all audit logs? This cannot be undone.')) return
-    setClearing(true)
-    try { await clearAuditLogs(); load() }
-    finally { setClearing(false) }
-  }
 
   return (
     <div className="p-8">
@@ -72,15 +67,6 @@ export default function AuditTrail() {
         >
           <Download size={12} />
           Export CSV
-        </button>
-        <button
-          onClick={handleClear}
-          disabled={clearing}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-crit/20
-                     text-xs text-crit/60 hover:text-crit hover:border-crit/40 transition-colors disabled:opacity-40"
-        >
-          <Trash2 size={12} />
-          Clear
         </button>
       </PageHeader>
 
