@@ -42,8 +42,11 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
 
-        {/* Root redirect */}
-        <Route path="/" element={<RootRedirect />} />
+        {/* Landing page */}
+        <Route path="/" element={<Landing />} />
+
+        {/* Root redirect (used after login/register success) */}
+        <Route path="/app" element={<RootRedirect />} />    
 
         {/* Admin-only routes */}
         <Route path="/dashboard" element={
