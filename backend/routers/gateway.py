@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 
 # NEW
 from fastapi import APIRouter, Depends, HTTPException
+from backend.services.groq_client import chat as groq_chat
+from backend.services.sensitivity_scanner import scan_prompt
 
 from backend.database.db import get_connection
 from backend.dependencies.auth import get_current_user_optional, require_admin
@@ -38,6 +40,37 @@ from backend.services.policy_checker import check_policies  # ← NEW
 from backend.services.risk_engine import calculate_risk
 
 router = APIRouter(prefix="/gateway", tags=["Runtime Gateway"])
+
+CHAT_TOOL_NAMES = {"internal_ai", "external_ai"}
+
+INTERNAL_SYSTEM_PROMPT = """You are Aegis AI's internal assistant, helping an employee
+with general work questions. Be concise and helpful."""
+
+
+def _complete_chat_request(tool_name: str, parameters_json: str) -> str:
+    """
+    Called only when an admin approves a paused chat item.
+    Re-runs the original prompt through the appropriate model and
+    returns the answer text to store in approval_queue.response.
+    """
+    try:
+        params = json.loads(parameters_json) if parameters_json else {}
+    except json.JSONDecodeError:
+        return "Error: could not read the original message."
+
+    message = params.get("message", "")
+    if not message:
+        return "Error: original message was empty."
+
+    if tool_name == "internal_ai":
+        return groq_chat(system_prompt=INTERNAL_SYSTEM_PROMPT, user_message=message, max_tokens=800)
+    else:  # external_ai
+        return groq_chat(
+            system_prompt="You are an external AI assistant. Answer helpfully and concisely.",
+            user_message=message,
+            model="llama-3.1-8b-instant",
+            max_tokens=800,
+        )
 
 
 # NEW
@@ -205,16 +238,26 @@ def _resolve(queue_id: int, new_status: str, payload: GatewayReviewRequest):
         raise HTTPException(status_code=400, detail=f"Queue item already {item['status']}")
 
     now = datetime.now(timezone.utc).isoformat()
+
+    # ── Chat auto-complete on approval ───────────────────────────────────────
+    response_text = None
+    if new_status == "approved" and item["tool_name"] in CHAT_TOOL_NAMES:
+        response_text = _complete_chat_request(item["tool_name"], item["parameters"])
+
     cursor.execute("""
         UPDATE approval_queue
-        SET status = ?, reviewed_by = ?, reviewed_at = ?
+        SET status = ?, reviewed_by = ?, reviewed_at = ?, response = ?
         WHERE id = ?
-    """, (new_status, payload.reviewed_by, now, queue_id))
+    """, (new_status, payload.reviewed_by, now, response_text, queue_id))
+
+    audit_reason = payload.reason or f"Human review: {new_status}"
+    if response_text:
+        audit_reason += " | AI response generated."
 
     _write_audit_log(
         cursor, item["agent_id"], item["tool_name"], item["action"],
         item["parameters"], item["risk_score"], new_status,
-        payload.reason or f"Human review: {new_status}", payload.reviewed_by
+        audit_reason, payload.reviewed_by, item.get("user_id")
     )
 
     conn.commit()
