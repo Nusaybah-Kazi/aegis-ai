@@ -1,4 +1,6 @@
 
+# NEW
+# NEW
 from fastapi import APIRouter, HTTPException, Query
 
 from backend.database.db import get_connection
@@ -74,12 +76,3 @@ def create_audit_log(entry: AuditLogEntry):
     conn.close()
     return dict(row)
 
-
-@router.delete("/clear")
-def clear_audit_logs():
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM audit_log")
-    conn.commit()
-    conn.close()
-    return {"message": "Audit log cleared"}

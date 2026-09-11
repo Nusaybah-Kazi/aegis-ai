@@ -23,7 +23,9 @@ Decision matrix:
 import json
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+# NEW
+from fastapi import APIRouter, Depends, HTTPException
+from backend.dependencies.auth import require_admin
 
 from backend.database.db import get_connection
 from backend.models.gateway import (
@@ -168,13 +170,15 @@ def get_queue(status: str | None = None):
     return [dict(row) for row in rows]
 
 
+# NEW
 @router.post("/approve/{queue_id}", response_model=ApprovalQueueResponse)
-def approve(queue_id: int, payload: GatewayReviewRequest):
+def approve(queue_id: int, payload: GatewayReviewRequest, _: dict = Depends(require_admin)):
     return _resolve(queue_id, "approved", payload)
 
 
+# NEW
 @router.post("/deny/{queue_id}", response_model=ApprovalQueueResponse)
-def deny(queue_id: int, payload: GatewayReviewRequest):
+def deny(queue_id: int, payload: GatewayReviewRequest, _: dict = Depends(require_admin)):
     return _resolve(queue_id, "denied", payload)
 
 

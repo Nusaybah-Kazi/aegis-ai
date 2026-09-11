@@ -1,4 +1,6 @@
-from fastapi import APIRouter, HTTPException
+# NEW
+from fastapi import APIRouter, Depends, HTTPException
+from backend.dependencies.auth import require_admin
 
 from backend.database.db import get_connection
 from backend.models.tool import ToolCreate, ToolResponse, ToolUpdate
@@ -30,6 +32,7 @@ def get_tool(tool_id: str):
     return dict(row)
 
 
+# OLD
 @router.post("/", response_model=ToolResponse, status_code=201)
 def create_tool(tool: ToolCreate):
     conn = get_connection()
@@ -58,8 +61,9 @@ def create_tool(tool: ToolCreate):
     return dict(row)
 
 
+# NEW
 @router.put("/{tool_id}", response_model=ToolResponse)
-def update_tool(tool_id: str, update: ToolUpdate):
+def update_tool(tool_id: str, update: ToolUpdate, _: dict = Depends(require_admin)):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -113,8 +117,9 @@ def update_tool(tool_id: str, update: ToolUpdate):
     return updated_tool
 
 
+# NEW
 @router.delete("/{tool_id}")
-def delete_tool(tool_id: str):
+def delete_tool(tool_id: str, _: dict = Depends(require_admin)):
     conn = get_connection()
     cursor = conn.cursor()
 

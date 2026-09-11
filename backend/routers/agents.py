@@ -1,6 +1,8 @@
 import json
 
-from fastapi import APIRouter, HTTPException
+# NEW
+from fastapi import APIRouter, Depends, HTTPException
+from backend.dependencies.auth import require_admin
 
 from backend.database.db import get_connection
 from backend.models.agent import AgentCreate, AgentResponse, AgentUpdate
@@ -40,8 +42,9 @@ def get_agent(agent_id: str):
     return agent
 
 
+# NEW
 @router.post("/", response_model=AgentResponse, status_code=201)
-def create_agent(agent: AgentCreate):
+def create_agent(agent: AgentCreate, _: dict = Depends(require_admin)):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -73,8 +76,9 @@ def create_agent(agent: AgentCreate):
     return result
 
 
+# NEW
 @router.put("/{agent_id}", response_model=AgentResponse)
-def update_agent(agent_id: str, update: AgentUpdate):
+def update_agent(agent_id: str, update: AgentUpdate, _: dict = Depends(require_admin)):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -115,8 +119,9 @@ def update_agent(agent_id: str, update: AgentUpdate):
     return result
 
 
+# NEW
 @router.delete("/{agent_id}")
-def delete_agent(agent_id: str):
+def delete_agent(agent_id: str, _: dict = Depends(require_admin)):
     conn = get_connection()
     cursor = conn.cursor()
 
