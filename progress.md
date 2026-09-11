@@ -375,14 +375,14 @@ Rules:
 > Goal: give employees a built-in AI assistant and an external AI proxy (ChatGPT, Gemini, any provider), both routed through a sensitivity scanner that detects PII, credentials, company data, and customer data before any prompt leaves the org.
 
 #### Backend
-- [ ] Build `backend/services/sensitivity_scanner.py`
+- [x] Build `backend/services/sensitivity_scanner.py`
       — uses Groq to scan every prompt for 4 categories:
         PII (names, emails, phone, Aadhaar),
         Company internals (revenue, strategy, product plans),
         Customer data (orders, transactions, customer records),
         Credentials (passwords, API keys, tokens)
       — returns: `{safe: bool, risk_level, findings: [], reason}`
-- [ ] Build `backend/routers/chat.py` with two endpoints:
+- [x] Build `backend/routers/chat.py` with two endpoints:
       `POST /chat/internal` — employee chats with Groq AI; prompt scanned first;
         clean → LLM answers; sensitive → blocked; borderline → paused for admin
       `POST /chat/external` — employee sends prompt to any external AI
@@ -390,10 +390,17 @@ Rules:
         using company-managed API key from `.env`; response returned to employee
 - [ ] Add `OPENAI_API_KEY` and `GOOGLE_API_KEY` to `.env.example`
 - [ ] Add `openai` and `google-generativeai` to `requirements.txt`
-- [ ] All chat interactions logged to `audit_log` with `user_id`, `tool_name=internal_ai`
+- [x] All chat interactions logged to `audit_log` with `user_id`, `tool_name=internal_ai`
       or `tool_name=external_ai`, decision, findings, and risk score
 - [ ] External AI: if provider key not configured in `.env` → return clear
       "provider not available" message to employee
+- [x] Add `response` column to `approval_queue` via migration in `init_db.py`
+      (stores the AI's answer once a paused chat item is approved)
+- [x] Wire admin approval → auto-complete: `gateway.py`'s `_resolve()` now
+      detects `tool_name` in `{internal_ai, external_ai}` on approval, re-runs
+      the original prompt through Groq, and stores the answer in
+      `approval_queue.response` — verified end-to-end via Swagger
+      (queued → approved → response populated → visible via GET /chat/history)
 
 #### Frontend
 - [ ] Build `frontend/src/pages/EmployeeChat.jsx`
@@ -410,10 +417,10 @@ Rules:
       AI Assistant → `/chat`, External AI → `/external`, My Requests → `/requests`
 
 #### Landing Page
-- [ ] Build `frontend/src/pages/Landing.jsx`
+- [x] Build `frontend/src/pages/Landing.jsx`
       — public page (no login needed) explaining what Aegis AI does
       — sections: hero, how it works (3 steps), key features, Login/Register CTAs
-- [ ] Wire `/` to `Landing.jsx` for unauthenticated users, redirect to role home if logged in
+- [x] Wire `/` to `Landing.jsx` for unauthenticated users, redirect to role home if logged in
 
 ### Phase 12 — Polish & Demo
 - [ ] Add demo scenario: Employee sends prompt with customer PII → blocked by scanner
