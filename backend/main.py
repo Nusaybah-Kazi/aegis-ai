@@ -1,12 +1,13 @@
 # backend/main.py
+from backend.routers import chat
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.database.init_db import init_db
 from backend.database.vector_store import ingest_policies
 from backend.routers import agents, audit, gateway, tools
-from backend.routers.compliance import router as compliance_router
 from backend.routers.auth import router as auth_router
+from backend.routers.compliance import router as compliance_router
 
 app = FastAPI(
     title="Aegis AI — Governance & Compliance API",
@@ -29,6 +30,7 @@ app.include_router(tools.router)
 app.include_router(audit.router)
 app.include_router(gateway.router)
 app.include_router(compliance_router)
+app.include_router(chat.router)
 
 @app.on_event("startup")
 def startup_event():
