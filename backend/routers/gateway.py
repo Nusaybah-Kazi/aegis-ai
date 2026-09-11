@@ -25,8 +25,6 @@ from datetime import datetime, timezone
 
 # NEW
 from fastapi import APIRouter, Depends, HTTPException
-from backend.services.groq_client import chat as groq_chat
-from backend.services.sensitivity_scanner import scan_prompt
 
 from backend.database.db import get_connection
 from backend.dependencies.auth import get_current_user_optional, require_admin
@@ -36,6 +34,7 @@ from backend.models.gateway import (
     GatewayEvaluateResponse,
     GatewayReviewRequest,
 )
+from backend.services.groq_client import chat as groq_chat
 from backend.services.policy_checker import check_policies  # ← NEW
 from backend.services.risk_engine import calculate_risk
 

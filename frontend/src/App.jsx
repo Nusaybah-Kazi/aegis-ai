@@ -6,6 +6,7 @@ import Sidebar from './components/Sidebar'
 import Landing from "./pages/Landing";
 
 import MyRequests from './pages/MyRequests'
+import EmployeeChat from './pages/EmployeeChat'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -40,11 +41,7 @@ export default function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
 
-        <Route path="/" element={<Landing />} />
         {/* Root redirect */}
         <Route path="/" element={<RootRedirect />} />
 
@@ -80,14 +77,10 @@ export default function App() {
           </ProtectedRoute>
         } />
 
-        {/* Employee route — placeholder until Phase 11 */}
+        {/* Employee routes */}
         <Route path="/chat" element={
           <ProtectedRoute>
-            <AppShell>
-              <div className="p-8 text-muted text-sm">
-                Employee chat coming in Phase 11.
-              </div>
-            </AppShell>
+            <AppShell><EmployeeChat /></AppShell>
           </ProtectedRoute>
         } />
 
