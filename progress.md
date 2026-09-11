@@ -344,19 +344,19 @@ Rules:
 ### Phase 10 — Authentication & Role-Based Access
 > Goal: replace "anyone can see everything" with real accounts and two roles — **Admin** and **Employee** — using free tools only (`passlib`, `python-jose`, your existing SQLite DB, a plain-text invite code in `.env`).
 
-- [ ] Add `users` table to `init_db.py` (id, name, email, password_hash, role, created_at)
-- [ ] Build `backend/models/user.py` — `UserCreate`, `UserLogin`, `UserResponse`
-- [ ] Build `backend/services/auth_service.py` — password hashing (bcrypt via `passlib`) + JWT create/verify (`python-jose`)
-- [ ] Build `backend/routers/auth.py` — `POST /auth/register`, `POST /auth/login`, `GET /auth/me`
-- [ ] Registration logic: blank/wrong invite code → `role = employee`; correct `ADMIN_INVITE_CODE` (from `.env`) → `role = admin`
-- [ ] Build `backend/dependencies/auth.py` — `get_current_user` and `require_admin` FastAPI dependencies
-- [ ] Protect sensitive existing routes with `require_admin` (gateway approve/deny, audit clear, agents/tools write endpoints)
-- [ ] Add `passlib[bcrypt]` and `python-jose[cryptography]` to `requirements.txt`
-- [ ] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
-- [ ] Frontend: `AuthContext.jsx` — stores JWT + role app-wide, attaches JWT to every Axios call
-- [ ] Frontend: `Login.jsx` and `Register.jsx` (register form includes optional "Admin invite code" field)
-- [ ] Frontend: `ProtectedRoute.jsx` — redirects based on role (Employee can't open Admin routes and vice versa)
-- [ ] Verify: register as employee (no code) → only see Employee view; register with correct invite code → see full Admin dashboard
+- [x] Add `users` table to `init_db.py`
+- [x] Build `backend/models/user.py`
+- [x] Build `backend/services/auth_service.py`
+- [x] Build `backend/routers/auth.py`
+- [x] Registration logic: invite code → admin, blank → employee
+- [x] Build `backend/dependencies/auth.py`
+- [x] Protect sensitive existing routes with `require_admin`
+- [x] Add `bcrypt==4.0.1`, `python-jose[cryptography]`, `email-validator` to `requirements.txt`
+- [x] Add `JWT_SECRET_KEY` and `ADMIN_INVITE_CODE` to `.env.example`
+- [x] Frontend: `AuthContext.jsx`
+- [x] Frontend: `Login.jsx` and `Register.jsx`
+- [x] Frontend: `ProtectedRoute.jsx`
+- [x] Verify: register as employee → only see Employee view; admin invite code → full Admin dashboard
 
 ### Phase 11 — Employee Simulation & Landing Experience
 > Goal: give Employees a chat interface that talks to an agent in plain English, routes through the *existing* Runtime Gateway, and give the whole app a public Landing page to tie it together for a demo.
@@ -527,6 +527,28 @@ POST /orchestrator/run endpoint that didn't exist yet.
 **How I solved it:** N/A
 **Next session goal:** Phase 10 — Authentication & Role-Based Access
 (users table, password hashing, JWT, admin invite code, protecting existing routes)
+
+### 11-Sep-2026 — Phase 10 (Milestones A–C)
+**What I learned:** JWT auth flow end-to-end — bcrypt password hashing, JWT
+issue/verify with python-jose, FastAPI dependency injection for route protection
+(`require_admin` as a `Depends` parameter). Immutable audit trail is a hard
+compliance requirement — no delete endpoint, not even for admins. passlib's
+bcrypt backend is broken on Python 3.13 (missing `__about__` attribute) — 
+switched to calling the `bcrypt` library directly. `EmailStr` in Pydantic v2
+requires `email-validator` as a separate install. Role-based routing on the
+frontend: `ProtectedRoute` checks role before rendering, `AuthContext` rehydrates
+JWT + user from localStorage on page load so refresh doesn't log you out.
+Frontend `.env` pointing at Render meant local auth changes had no effect until
+redeployed — always check which API URL the frontend is hitting before debugging.
+**Where I got stuck:** passlib bcrypt failure on Python 3.13; missing
+`email-validator`; `clearAuditLogs` import in AuditTrail.jsx broke the frontend
+after we removed the endpoint; blank screen traced to frontend hitting Render
+instead of localhost.
+**How I solved it:** Replaced passlib with direct bcrypt calls; added
+email-validator to requirements.txt; removed Clear button and import from
+AuditTrail.jsx; switched .env to Render URL and redeployed.
+**Next session goal:** Phase 10 Milestone D — Employee view (My Requests page)
+then Phase 11 (EmployeeChat + intent parser + Landing page).
 
 ---
 
