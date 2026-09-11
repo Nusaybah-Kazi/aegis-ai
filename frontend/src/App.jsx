@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import Sidebar from './components/Sidebar'
 
+import MyRequests from './pages/MyRequests'
 import Login          from './pages/Login'
 import Register       from './pages/Register'
 import Dashboard      from './pages/Dashboard'
@@ -82,6 +83,12 @@ export default function App() {
                 Employee chat coming in Phase 11.
               </div>
             </AppShell>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/requests" element={
+          <ProtectedRoute>
+            <AppShell><MyRequests /></AppShell>
           </ProtectedRoute>
         } />
 

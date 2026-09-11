@@ -1,19 +1,22 @@
 
 # NEW
 # NEW
-from fastapi import APIRouter, HTTPException, Query
-
+# NEW
+from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.database.db import get_connection
+from backend.dependencies.auth import get_current_user, require_admin
 from backend.models.audit_log import AuditLogEntry, AuditLogResponse
 
 router = APIRouter(prefix="/audit", tags=["Audit Trail"])
 
 
+# NEW
 @router.get("/", response_model=list[AuditLogResponse])
 def get_audit_logs(
     agent_id: str | None = Query(None),
     decision: str | None = Query(None),
-    limit: int = Query(50, le=200)
+    limit: int = Query(50, le=200),
+    _: dict = Depends(require_admin)
 ):
     conn = get_connection()
     cursor = conn.cursor()
@@ -36,6 +39,28 @@ def get_audit_logs(
     conn.close()
     return [dict(row) for row in rows]
 
+@router.get("/my", response_model=list[AuditLogResponse])
+def get_my_logs(
+    decision: str | None = Query(None),
+    limit: int = Query(50, le=200),
+    current_user: dict = Depends(get_current_user)
+):
+    """Returns only the audit entries belonging to the logged-in employee."""
+    conn = get_connection()
+
+    query = "SELECT * FROM audit_log WHERE user_id = ?"
+    params = [current_user["id"]]
+
+    if decision:
+        query += " AND decision = ?"
+        params.append(decision)
+
+    query += " ORDER BY timestamp DESC LIMIT ?"
+    params.append(limit)
+
+    rows = conn.execute(query, params).fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
 
 @router.get("/{log_id}", response_model=AuditLogResponse)
 def get_audit_log(log_id: int):

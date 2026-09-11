@@ -1,7 +1,8 @@
 # backend/dependencies/auth.py
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
+from typing import Optional
+from fastapi import Request
 from backend.database.db import get_connection
 from backend.services.auth_service import decode_token
 
@@ -39,3 +40,20 @@ def require_admin(current_user: dict = Depends(get_current_user)):
             detail="Admin access required",
         )
     return current_user
+
+async def get_current_user_optional(request: Request) -> Optional[dict]:
+    """Like get_current_user but returns None instead of 401 if no token."""
+    auth = request.headers.get("Authorization")
+    if not auth or not auth.startswith("Bearer "):
+        return None
+    token = auth.split(" ", 1)[1]
+    payload = decode_token(token)
+    if not payload:
+        return None
+    conn = get_connection()
+    user = conn.execute(
+        "SELECT id, name, email, role, created_at FROM users WHERE id = ?",
+        (payload["sub"],),
+    ).fetchone()
+    conn.close()
+    return dict(user) if user else None

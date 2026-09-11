@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 # NEW
 from fastapi import APIRouter, Depends, HTTPException
 from backend.dependencies.auth import require_admin
-
+from backend.dependencies.auth import require_admin, get_current_user_optional
 from backend.database.db import get_connection
 from backend.models.gateway import (
     ApprovalQueueResponse,
@@ -40,15 +40,17 @@ from backend.services.risk_engine import calculate_risk
 router = APIRouter(prefix="/gateway", tags=["Runtime Gateway"])
 
 
-def _write_audit_log(cursor, agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by=None):
+# NEW
+def _write_audit_log(cursor, agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by=None, user_id=None):
     cursor.execute("""
-        INSERT INTO audit_log (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by))
+        INSERT INTO audit_log (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by, user_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by, user_id))
 
 
+# NEW
 @router.post("/evaluate", response_model=GatewayEvaluateResponse)
-def evaluate(payload: GatewayEvaluateRequest):
+def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_current_user_optional)):
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -110,32 +112,37 @@ def evaluate(payload: GatewayEvaluateRequest):
         decision = "blocked"
 
     # ── 6. Execute decision ──────────────────────────────────────────────────
+    # ── 6. Execute decision ──────────────────────────────────────────────────
     queue_id = None
+    user_id = current_user["id"] if current_user else None
 
     if decision == "approved":
         _write_audit_log(
             cursor, payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], decision, combined_reason
+            payload.parameters, assessment["risk_score"], decision, combined_reason,
+            user_id=user_id
         )
 
     elif decision == "paused":
         cursor.execute("""
-            INSERT INTO approval_queue (agent_id, tool_name, action, parameters, risk_score, reason, status)
-            VALUES (?, ?, ?, ?, ?, ?, 'pending')
+            INSERT INTO approval_queue (agent_id, tool_name, action, parameters, risk_score, reason, status, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
         """, (
             payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], combined_reason
+            payload.parameters, assessment["risk_score"], combined_reason, user_id
         ))
         queue_id = cursor.lastrowid
         _write_audit_log(
             cursor, payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], decision, combined_reason
+            payload.parameters, assessment["risk_score"], decision, combined_reason,
+            user_id=user_id
         )
 
     else:  # blocked
         _write_audit_log(
             cursor, payload.agent_id, payload.tool_name, payload.action,
-            payload.parameters, assessment["risk_score"], decision, combined_reason
+            payload.parameters, assessment["risk_score"], decision, combined_reason,
+            user_id=user_id
         )
 
     conn.commit()
