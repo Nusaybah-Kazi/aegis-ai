@@ -31,7 +31,10 @@ export default function MyRequests() {
   function load() {
     setLoading(true)
     // calls GET /audit/my — returns only this employee's entries
-    fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/audit/my` +
+    // .replace(/\/$/, '') strips any trailing slash from the env var so we
+    // never accidentally build a double-slash URL like ".../aegis-ai//audit/my"
+    const base = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+    fetch(`${base}/audit/my` +
       (filter !== 'all' ? `?decision=${filter}` : ''), {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('aegis_token')}`,
