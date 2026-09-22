@@ -66,11 +66,11 @@ PROVIDER_MODELS = {
 }
 
 
-def _write_audit_log(cursor, user_id, agent_id, tool_name, action, parameters, risk_score, decision, reason):
+def _write_audit_log(cursor, user_id, agent_id, tool_name, action, parameters, risk_score, decision, reason, answer=None, queue_id=None):
     cursor.execute("""
-        INSERT INTO audit_log (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by, user_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (agent_id, tool_name, action, parameters, risk_score, decision, reason, None, user_id))
+        INSERT INTO audit_log (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by, user_id, answer, queue_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (agent_id, tool_name, action, parameters, risk_score, decision, reason, None, user_id, answer, queue_id))
 
 
 def _queue_for_approval(cursor, user_id, tool_name, parameters, risk_score, reason):
@@ -168,7 +168,8 @@ def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
         )
         _write_audit_log(
             cursor, user_id, "employee-chat", tool_name, "chat",
-            params_json, assessment["risk_score"], decision, combined_reason
+            params_json, assessment["risk_score"], decision, combined_reason,
+            queue_id=queue_id,
         )
         return {
             "status": "paused",
@@ -220,7 +221,8 @@ def chat_internal(payload: ChatRequest, current_user: dict = Depends(get_current
         )
         _write_audit_log(
             cursor, user_id, "employee-chat", "internal_ai", "chat",
-            params_json, 50, "paused", verdict["reason"]
+            params_json, 50, "paused", verdict["reason"],
+            queue_id=queue_id,
         )
         conn.commit()
         conn.close()
@@ -246,7 +248,8 @@ def chat_internal(payload: ChatRequest, current_user: dict = Depends(get_current
 
     _write_audit_log(
         cursor, user_id, "employee-chat", "internal_ai", "chat",
-        params_json, 5, "approved", "Scanned clean; answered directly."
+        params_json, 5, "approved", "Scanned clean; answered directly.",
+        answer=answer,
     )
     conn.commit()
     conn.close()
@@ -288,7 +291,8 @@ def chat_external(payload: ExternalChatRequest, current_user: dict = Depends(get
         )
         _write_audit_log(
             cursor, user_id, "employee-chat", "external_ai", "chat",
-            params_json, 60, "paused", verdict["reason"]
+            params_json, 60, "paused", verdict["reason"],
+            queue_id=queue_id,
         )
         conn.commit()
         conn.close()
@@ -310,12 +314,63 @@ def chat_external(payload: ExternalChatRequest, current_user: dict = Depends(get
 
     _write_audit_log(
         cursor, user_id, "employee-chat", "external_ai", "chat",
-        params_json, 10, "approved", f"Scanned clean; proxied to {provider}."
+        params_json, 10, "approved", f"Scanned clean; proxied to {provider}.",
+        answer=answer,
     )
     conn.commit()
     conn.close()
 
     return {"status": "answered", "answer": answer, "provider": provider}
+
+
+CHAT_TOOL_NAMES = (
+    'internal_ai', 'external_ai', 'process_refund', 'query_order',
+    'send_notification', 'query_faq', 'create_ticket', 'query_inventory',
+    'update_inventory', 'send_alert',
+)
+
+
+def _decision_to_status(decision: str) -> str:
+    if decision == "approved":
+        return "answered"
+    return decision  # 'blocked' or 'paused' already match frontend's expected status strings
+
+
+def _build_turn(row: dict) -> list[dict]:
+    """
+    Turns one audit_log row into a [user_message, assistant_message] pair
+    matching the shape EmployeeChat.jsx already renders live.
+    """
+    try:
+        params = json.loads(row["parameters"]) if row["parameters"] else {}
+    except json.JSONDecodeError:
+        params = {}
+
+    user_text = params.get("message", "")
+    provider = params.get("provider")
+    status = _decision_to_status(row["decision"])
+
+    if status == "answered":
+        if row["answer"]:
+            assistant_text = row["answer"]
+        else:
+            # Tool-call approvals (e.g. process_refund via chat) never had a
+            # persisted answer — reconstruct the same phrasing that was
+            # originally returned at request time.
+            assistant_text = f"Your request was approved and processed. ({row['reason']})"
+    else:
+        assistant_text = None  # blocked/paused bubbles use `reason`, not `text`
+
+    assistant_message = {
+        "role": "assistant",
+        "status": status,
+        "text": assistant_text,
+        "reason": row["reason"] if status != "answered" else None,
+        "queue_id": row["queue_id"],
+        "provider": provider,
+    }
+
+    return [{"role": "user", "text": user_text}, assistant_message]
 
 
 @router.get("/history")
@@ -325,20 +380,23 @@ def chat_history(current_user: dict = Depends(get_current_user)):
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("""
+    placeholders = ",".join("?" for _ in CHAT_TOOL_NAMES)
+    cursor.execute(f"""
         SELECT * FROM audit_log
-        WHERE user_id = ? AND tool_name IN ('internal_ai', 'external_ai', 'process_refund', 'query_order', 'send_notification', 'query_faq', 'create_ticket', 'query_inventory', 'update_inventory', 'send_alert')
+        WHERE user_id = ? AND tool_name IN ({placeholders})
         ORDER BY timestamp ASC
-    """, (user_id,))
-    audit_rows = [dict(row) for row in cursor.fetchall()]
-
-    cursor.execute("""
-        SELECT * FROM approval_queue
-        WHERE user_id = ? AND tool_name IN ('internal_ai', 'external_ai', 'process_refund', 'query_order', 'send_notification', 'query_faq', 'create_ticket', 'query_inventory', 'update_inventory', 'send_alert')
-        ORDER BY created_at ASC
-    """, (user_id,))
-    queue_rows = [dict(row) for row in cursor.fetchall()]
-
+    """, (user_id, *CHAT_TOOL_NAMES))
+    rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
-    return {"audit_log": audit_rows, "approval_queue": queue_rows}
+    internal_messages = []
+    external_messages = []
+
+    for row in rows:
+        turn = _build_turn(row)
+        if row["tool_name"] == "external_ai":
+            external_messages.extend(turn)
+        else:
+            internal_messages.extend(turn)
+
+    return {"internal": internal_messages, "external": external_messages}

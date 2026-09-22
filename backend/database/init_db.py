@@ -69,6 +69,7 @@ def init_db():
             decision TEXT,
             reason TEXT,
             reviewed_by TEXT,
+            queue_id INTEGER, 
             timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
