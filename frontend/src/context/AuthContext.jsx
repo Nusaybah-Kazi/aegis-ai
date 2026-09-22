@@ -10,16 +10,20 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   // Rehydrate from localStorage on first load
-  useEffect(() => {
-    const stored = localStorage.getItem('aegis_token')
-    const storedUser = localStorage.getItem('aegis_user')
-    if (stored && storedUser) {
-      setToken(stored)
-      setUser(JSON.parse(storedUser))
-      api.defaults.headers.common['Authorization'] = `Bearer ${stored}`
-    }
-    setLoading(false)
-  }, [])
+useEffect(() => {
+  const stored = localStorage.getItem('aegis_token')
+  const storedUser = localStorage.getItem('aegis_user')
+  if (stored && storedUser) {
+    setToken(stored)
+    setUser(JSON.parse(storedUser))
+    api.defaults.headers.common['Authorization'] = `Bearer ${stored}`
+  }
+  setLoading(false)
+
+  // Ping the backend early so Render starts waking up before
+  // the user even finishes typing their login/register form
+  api.get('/health').catch(() => {})
+}, [])
 
   function login(tokenStr, userObj) {
     localStorage.setItem('aegis_token', tokenStr)

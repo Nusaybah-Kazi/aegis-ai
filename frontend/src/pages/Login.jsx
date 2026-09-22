@@ -1,7 +1,7 @@
 // frontend/src/pages/Login.jsx
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Hexagon, LogIn } from 'lucide-react'
+import { Hexagon, LogIn, Loader2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import api from '../api/client'
 
@@ -9,21 +9,34 @@ export default function Login() {
   const { login } = useAuth()
   const navigate  = useNavigate()
 
-  const [form, setForm]     = useState({ email: '', password: '' })
-  const [error, setError]   = useState('')
+  const [form, setForm]       = useState({ email: '', password: '' })
+  const [error, setError]     = useState('')
   const [loading, setLoading] = useState(false)
+  const [waking, setWaking]   = useState(false)
+  const wakeTimer = useRef(null)
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
+    setWaking(false)
+
+    // If the request is still going after 3s, assume Render is cold-starting
+    wakeTimer.current = setTimeout(() => setWaking(true), 3000)
+
     try {
       const res = await api.post('/auth/login', form)
       login(res.data.access_token, res.data.user)
       navigate(res.data.user.role === 'admin' ? '/dashboard' : '/chat', { replace: true })
     } catch (err) {
-      setError(err.response?.data?.detail || 'Login failed')
+      if (!err.response) {
+        setError('Server is waking up — this can take up to a minute on first use. Please try again.')
+      } else {
+        setError(err.response?.data?.detail || 'Login failed')
+      }
     } finally {
+      clearTimeout(wakeTimer.current)
+      setWaking(false)
       setLoading(false)
     }
   }
@@ -88,8 +101,17 @@ export default function Login() {
                          font-medium text-sm py-2 rounded hover:bg-signal/90
                          disabled:opacity-50 transition-colors mt-1"
             >
-              <LogIn size={15} />
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? (
+                <>
+                  <Loader2 size={15} className="animate-spin" />
+                  {waking ? 'Waking up server…' : 'Signing in…'}
+                </>
+              ) : (
+                <>
+                  <LogIn size={15} />
+                  Sign in
+                </>
+              )}
             </button>
           </form>
         </div>
