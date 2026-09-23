@@ -2,11 +2,12 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Bot, Shield, ScrollText,
-  MessageSquare, Hexagon, LogOut, MessageCircle, Clock,
+  MessageSquare, Hexagon, LogOut, MessageCircle, Clock, Users,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const ADMIN_NAV = [
+  { to: '/histories', icon: Users, label: 'Employee Chats' },
   { to: '/dashboard',  icon: LayoutDashboard, label: 'Overview'    },
   { to: '/agents',     icon: Bot,             label: 'Agents'      },
   { to: '/gateway',    icon: Shield,          label: 'Gateway'     },

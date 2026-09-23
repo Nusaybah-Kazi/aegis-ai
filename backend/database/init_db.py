@@ -192,6 +192,15 @@ def init_db():
         conn.execute("ALTER TABLE approval_queue ADD COLUMN response TEXT")
         print("✅ Migration: added response to approval_queue")
 
+    # audit_log — answer and queue_id (Phase 11)
+    if "answer" not in existing_audit_cols:
+        conn.execute("ALTER TABLE audit_log ADD COLUMN answer TEXT")
+        print("✅ Migration: added answer to audit_log")
+
+    if "queue_id" not in existing_audit_cols:
+        conn.execute("ALTER TABLE audit_log ADD COLUMN queue_id INTEGER")
+        print("✅ Migration: added queue_id to audit_log")
+
     conn.commit()
     print("Migrations complete.")
     conn.close()

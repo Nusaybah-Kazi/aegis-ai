@@ -399,20 +399,20 @@ Rules:
       the original prompt through Groq, and stores the answer in
       `approval_queue.response` — verified end-to-end via Swagger
       (queued → approved → response populated → visible via GET /chat/history)
-
 #### Frontend
-- [ ] Build `frontend/src/pages/EmployeeChat.jsx`
-      — tabbed UI: "AI Assistant" tab (internal Groq) + "External AI" tab
-      — Internal tab: chat bubbles, input box, blocked messages shown in red with reason
-      — External tab: provider selector (ChatGPT / Gemini / Groq), prompt input,
-        safety verdict shown before/alongside response, blocked prompts explained
-- [ ] Build `frontend/src/pages/MyRequests.jsx`
-      — table of employee's own audit entries (timestamp, tool, decision, risk, reason)
-      — filter by decision (approved / blocked / paused)
-      — paused entries show "Pending admin review" status badge
-- [ ] Wire `/requests` route in `App.jsx`
-- [ ] Update `Sidebar.jsx` employee nav:
-      AI Assistant → `/chat`, External AI → `/external`, My Requests → `/requests`
+- [x] Build `frontend/src/pages/EmployeeChat.jsx`
+      — tabbed UI with history restore on mount, Clear History button,
+        Internal and External AI tabs both persist across sessions
+- [x] Build `frontend/src/pages/EmployeeHistories.jsx` (admin view)
+      — lists all employees, lazy-loads each employee's Internal/External
+        AI history on expand, search by name/email
+- [x] Build `frontend/src/pages/MyRequests.jsx`
+- [x] Wire `/requests` and `/histories` routes in `App.jsx`
+- [x] Update `Sidebar.jsx` — employee nav and admin Employee Chats entry
+- [x] Add `GET /chat/history/user/{user_id}` (admin) and
+      `DELETE /chat/history` (employee clear) to `backend/routers/chat.py`
+- [x] Add `GET /auth/users` to `backend/routers/auth.py`
+- [x] Add `answer` and `queue_id` migration to `init_db.py`
 
 #### Landing Page
 - [x] Build `frontend/src/pages/Landing.jsx`
@@ -421,13 +421,13 @@ Rules:
 - [x] Wire `/` to `Landing.jsx` for unauthenticated users, redirect to role home if logged in
 
 ### Phase 12 — Polish & Demo
-- [ ] Add demo scenario: Employee sends prompt with customer PII → blocked by scanner
-- [ ] Add demo scenario: Employee uses External AI (ChatGPT) → Aegis scans → proxies → returns response
-- [ ] Add demo scenario: High-risk request paused → Admin approves → Employee sees outcome in My Requests
-- [ ] Add demo scenario: Compliance question answered from policy docs
-- [ ] Add demo scenario: Permission change triggers risk reassessment
-- [ ] Record a short walkthrough video (optional)
-- [ ] Update `docs/demo_scenarios.md`
+- [x] Add demo scenario: Employee sends prompt with customer PII → blocked by scanner
+- [x] Add demo scenario: Employee uses External AI (ChatGPT) → Aegis scans → proxies → returns response
+- [x] Add demo scenario: High-risk request paused → Admin approves → Employee sees outcome in My Requests
+- [x] Add demo scenario: Compliance question answered from policy docs
+- [x] Add demo scenario: Permission change triggers risk reassessment
+- [x] Record a short walkthrough video (optional)
+- [x] Update `docs/demo_scenarios.md`
 
 ---
 
@@ -601,6 +601,30 @@ email-validator to requirements.txt; removed Clear button and import from
 AuditTrail.jsx; switched .env to Render URL and redeployed.
 **Next session goal:** Phase 10 Milestone D — Employee view (My Requests page)
 then Phase 11 (EmployeeChat + intent parser + Landing page).
+
+### 23-Sep-2026 — Phase 11 Frontend + Auth & History fixes
+**What I learned:** Vite bakes VITE_API_URL at build time — changing .env requires
+a full dev server restart and cache wipe (rd /s /q node_modules\.vite) to take
+effect; a running server silently keeps the old value. SQLite ALTER TABLE migrations
+must be added explicitly for every new column — CREATE TABLE IF NOT EXISTS never
+updates an existing table's schema, so answer and queue_id in audit_log were missing
+until migrations were added. Chat history restore works by calling GET /chat/history
+on mount and seeding both ChatPanel components with initialMessages — the same message
+shape the live send path already produces, so no extra rendering logic was needed.
+Admin employee history view uses a lazy-load pattern — history is fetched only when
+an employee row is first expanded, not on page load, to avoid N API calls upfront.
+PowerShell rejects multi-line python -c strings with escaped quotes — use semicolons
+on one line or just reset the DB file directly.
+**Where I got stuck:** All chat messages showing "Something went wrong" — frontend
+was hitting the Render deployed backend (VITE_API_URL pointing at Render) instead
+of localhost, so the JWT was invalid and the chat router never received the request.
+Jane couldn't log back in for the same reason — she existed only in the local DB,
+not on Render. answer and queue_id columns missing from audit_log caused insert
+failures that surfaced as generic frontend errors with no traceback in uvicorn logs.
+**How I solved it:** Cleared Vite cache and restarted dev server to pick up
+localhost URL. Added answer and queue_id migrations to init_db.py. Re-registered
+Jane locally after confirming the schema was correct.
+**Next session goal:** Phase 12 — demo scenarios and final polish.
 
 ---
 

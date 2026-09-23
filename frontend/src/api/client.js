@@ -9,6 +9,11 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// ─── Chat History ─────────────────────────────────────────────────────────────
+export const getChatHistory       = ()         => api.get('/chat/history')
+export const getEmployeeChatHistory = (userId) => api.get(`/chat/history/user/${userId}`)
+export const clearMyChatHistory   = ()         => api.delete('/chat/history')
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const loginUser    = (data) => api.post('/auth/login', data)
 export const registerUser = (data) => api.post('/auth/register', data)

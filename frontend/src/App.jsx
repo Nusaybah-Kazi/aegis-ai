@@ -1,4 +1,5 @@
 // frontend/src/App.jsx
+import EmployeeHistories from './pages/EmployeeHistories'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -46,7 +47,7 @@ export default function App() {
         <Route path="/" element={<Landing />} />
 
         {/* Root redirect (used after login/register success) */}
-        <Route path="/app" element={<RootRedirect />} />    
+        <Route path="/app" element={<RootRedirect />} />
 
         {/* Admin-only routes */}
         <Route path="/dashboard" element={
@@ -77,6 +78,12 @@ export default function App() {
         <Route path="/compliance" element={
           <ProtectedRoute requiredRole="admin">
             <AppShell><ComplianceChat /></AppShell>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/histories" element={
+          <ProtectedRoute requiredRole="admin">
+            <AppShell><EmployeeHistories /></AppShell>
           </ProtectedRoute>
         } />
 

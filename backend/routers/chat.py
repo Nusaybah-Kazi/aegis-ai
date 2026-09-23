@@ -32,7 +32,7 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-
+from backend.dependencies.auth import require_admin
 from backend.database.db import get_connection
 from backend.dependencies.auth import get_current_user
 from backend.services.groq_client import chat as groq_chat
@@ -392,6 +392,53 @@ def chat_history(current_user: dict = Depends(get_current_user)):
     internal_messages = []
     external_messages = []
 
+    for row in rows:
+        turn = _build_turn(row)
+        if row["tool_name"] == "external_ai":
+            external_messages.extend(turn)
+        else:
+            internal_messages.extend(turn)
+
+    return {"internal": internal_messages, "external": external_messages}
+
+@router.delete("/history")
+def clear_my_chat_history(current_user: dict = Depends(get_current_user)):
+    """Employee clears their own chat history from audit_log."""
+    user_id = current_user["id"]
+    placeholders = ",".join("?" for _ in CHAT_TOOL_NAMES)
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(f"""
+        DELETE FROM audit_log
+        WHERE user_id = ? AND tool_name IN ({placeholders})
+    """, (user_id, *CHAT_TOOL_NAMES))
+    deleted = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return {"deleted": deleted}
+
+
+@router.get("/history/user/{user_id}")
+def chat_history_for_user(
+    user_id: int,
+    _admin: dict = Depends(require_admin),
+):
+    """Admin views a specific employee's full chat history."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    placeholders = ",".join("?" for _ in CHAT_TOOL_NAMES)
+    cursor.execute(f"""
+        SELECT * FROM audit_log
+        WHERE user_id = ? AND tool_name IN ({placeholders})
+        ORDER BY timestamp ASC
+    """, (user_id, *CHAT_TOOL_NAMES))
+    rows = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+
+    internal_messages = []
+    external_messages = []
     for row in rows:
         turn = _build_turn(row)
         if row["tool_name"] == "external_ai":

@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from backend.database.db import get_connection
-from backend.dependencies.auth import get_current_user
+from backend.dependencies.auth import get_current_user, require_admin
 from backend.models.user import TokenResponse, UserCreate, UserLogin, UserResponse
 from backend.services.auth_service import (
     create_access_token,
@@ -89,3 +89,13 @@ def login(body: UserLogin):
 @router.get("/me", response_model=UserResponse)
 def me(current_user: dict = Depends(get_current_user)):
     return UserResponse(**current_user)
+
+@router.get("/users")
+def list_users(current_user: dict = Depends(require_admin)):
+    """Admin only — list all registered users (id, name, email, role)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC")
+    users = [dict(row) for row in cursor.fetchall()]
+    conn.close()
+    return users
