@@ -4,13 +4,15 @@ chat.py (router)
 ------------------
 Employee-facing AI chat — two flavors:
 
-  POST /chat/internal  — employee talks to Aegis's own Groq-backed assistant.
+  POST /chat/internal  — employee talks to a specific internal agent
+                          (e.g. Refund Agent, Support Agent, Inventory Agent).
                           Safe messages that turn out to be REAL TOOL REQUESTS
                           (e.g. "process a refund of 50000") are routed through
                           the same risk_engine + policy_checker used by the
                           Runtime Gateway, so they can come back approved,
                           paused for human review, or blocked — instead of
-                          just being answered as chat.
+                          just being answered as chat. The message can only
+                          trigger tools that belong to the selected agent.
   POST /chat/external  — employee's prompt is proxied to a selected "external"
                           AI provider (simulated via distinct Groq-hosted
                           models, to avoid other vendors' paid APIs or tight
@@ -43,12 +45,20 @@ from backend.services.sensitivity_scanner import scan_prompt
 
 router = APIRouter(prefix="/chat", tags=["Employee Chat"])
 
-INTERNAL_SYSTEM_PROMPT = """You are Aegis AI's internal assistant, helping an employee
+DEFAULT_AGENT_ID = "agent-002"  # Support Agent — fallback when no agent_id is sent
+# (keeps old clients / the "no agent selected" case working without crashing)
+
+INTERNAL_SYSTEM_PROMPT_TEMPLATE = """You are {agent_name}, Aegis AI's internal assistant for this
+area of work. {agent_description}. Be concise and helpful. If the employee asks about something
+outside your area, say so and suggest they use the right assistant instead."""
+
+FALLBACK_SYSTEM_PROMPT = """You are Aegis AI's internal assistant, helping an employee
 with general work questions. Be concise and helpful."""
 
 
 class ChatRequest(BaseModel):
     message: str
+    agent_id: str | None = None   # which internal agent this message is directed to
 
 
 class ExternalChatRequest(BaseModel):
@@ -66,6 +76,19 @@ PROVIDER_MODELS = {
 }
 
 
+def _get_agent(cursor, agent_id: str) -> dict | None:
+    cursor.execute("SELECT * FROM agents WHERE id = ?", (agent_id,))
+    row = cursor.fetchone()
+    if row is None:
+        return None
+    agent = dict(row)
+    try:
+        agent["tools"] = json.loads(agent["tools"]) if agent["tools"] else []
+    except (json.JSONDecodeError, TypeError):
+        agent["tools"] = []
+    return agent
+
+
 def _write_audit_log(cursor, user_id, agent_id, tool_name, action, parameters, risk_score, decision, reason, answer=None, queue_id=None):
     cursor.execute("""
         INSERT INTO audit_log (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by, user_id, answer, queue_id)
@@ -73,11 +96,11 @@ def _write_audit_log(cursor, user_id, agent_id, tool_name, action, parameters, r
     """, (agent_id, tool_name, action, parameters, risk_score, decision, reason, None, user_id, answer, queue_id))
 
 
-def _queue_for_approval(cursor, user_id, tool_name, parameters, risk_score, reason):
+def _queue_for_approval(cursor, user_id, agent_id, tool_name, parameters, risk_score, reason):
     cursor.execute("""
         INSERT INTO approval_queue (agent_id, tool_name, action, parameters, risk_score, reason, status, user_id)
         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?)
-    """, ("employee-chat", tool_name, "chat", parameters, risk_score, reason, user_id))
+    """, (agent_id, tool_name, "chat", parameters, risk_score, reason, user_id))
     return cursor.lastrowid
 
 
@@ -98,11 +121,12 @@ def _call_external_ai(prompt: str, provider: str) -> str:
     )
 
 
-def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
+def _handle_tool_call(cursor, user_id, agent_id, tool_name, parameters, message):
     """
     Runs a detected tool-call intent through the same risk_engine +
     policy_checker logic used by /gateway/evaluate, and writes the
-    matching audit log / approval_queue entries.
+    matching audit log / approval_queue entries — attributed to the
+    real agent (agent-001/002/003), not a generic placeholder.
 
     Returns the dict to send back to the frontend.
     """
@@ -114,7 +138,7 @@ def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
         # tool catalog — but fail closed just in case.
         params_json = json.dumps({"message": message, "parameters": parameters})
         _write_audit_log(
-            cursor, user_id, "employee-chat", tool_name, "chat",
+            cursor, user_id, agent_id, tool_name, "chat",
             params_json, 0, "blocked", f"Tool '{tool_name}' not found in catalog"
         )
         return {
@@ -131,7 +155,7 @@ def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
         tool_data_sensitivity=tool.get("data_sensitivity", "low"),
         amount=amount,
     )
-    assessment = calculate_risk(tool, agent_id="employee-chat", amount=amount)
+    assessment = calculate_risk(tool, agent_id=agent_id, amount=amount)
     recommendation = assessment["recommendation"]
 
     risk_reason = "; ".join(assessment["factors"])
@@ -154,7 +178,7 @@ def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
 
     if decision == "approved":
         _write_audit_log(
-            cursor, user_id, "employee-chat", tool_name, "chat",
+            cursor, user_id, agent_id, tool_name, "chat",
             params_json, assessment["risk_score"], decision, combined_reason
         )
         return {
@@ -164,10 +188,10 @@ def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
 
     if decision == "paused":
         queue_id = _queue_for_approval(
-            cursor, user_id, tool_name, params_json, assessment["risk_score"], combined_reason
+            cursor, user_id, agent_id, tool_name, params_json, assessment["risk_score"], combined_reason
         )
         _write_audit_log(
-            cursor, user_id, "employee-chat", tool_name, "chat",
+            cursor, user_id, agent_id, tool_name, "chat",
             params_json, assessment["risk_score"], decision, combined_reason,
             queue_id=queue_id,
         )
@@ -179,7 +203,7 @@ def _handle_tool_call(cursor, user_id, tool_name, parameters, message):
 
     # blocked
     _write_audit_log(
-        cursor, user_id, "employee-chat", tool_name, "chat",
+        cursor, user_id, agent_id, tool_name, "chat",
         params_json, assessment["risk_score"], decision, combined_reason
     )
     return {
@@ -196,15 +220,22 @@ def chat_internal(payload: ChatRequest, current_user: dict = Depends(get_current
     if not message:
         raise HTTPException(status_code=400, detail="Message cannot be empty")
 
-    verdict = scan_prompt(message)
-    params_json = json.dumps({"message": message})
-
     conn = get_connection()
     cursor = conn.cursor()
 
+    agent_id = payload.agent_id or DEFAULT_AGENT_ID
+    agent = _get_agent(cursor, agent_id)
+
+    if agent is None:
+        conn.close()
+        raise HTTPException(status_code=404, detail=f"Agent '{agent_id}' not found")
+
+    verdict = scan_prompt(message)
+    params_json = json.dumps({"message": message})
+
     if verdict["risk_level"] == "unsafe":
         _write_audit_log(
-            cursor, user_id, "employee-chat", "internal_ai", "chat",
+            cursor, user_id, agent_id, "internal_ai", "chat",
             params_json, 80, "blocked", verdict["reason"]
         )
         conn.commit()
@@ -217,10 +248,10 @@ def chat_internal(payload: ChatRequest, current_user: dict = Depends(get_current
 
     if verdict["risk_level"] == "borderline":
         queue_id = _queue_for_approval(
-            cursor, user_id, "internal_ai", params_json, 50, verdict["reason"]
+            cursor, user_id, agent_id, "internal_ai", params_json, 50, verdict["reason"]
         )
         _write_audit_log(
-            cursor, user_id, "employee-chat", "internal_ai", "chat",
+            cursor, user_id, agent_id, "internal_ai", "chat",
             params_json, 50, "paused", verdict["reason"],
             queue_id=queue_id,
         )
@@ -232,22 +263,29 @@ def chat_internal(payload: ChatRequest, current_user: dict = Depends(get_current
             "reason": verdict["reason"],
         }
 
-    # safe — check if this is actually a tool-call request before answering as chat
-    intent = parse_intent(message)
+    # safe — check if this is actually a tool-call request before answering as
+    # chat. Only the SELECTED AGENT'S OWN tools are considered, so e.g. the
+    # Refund Agent can never trigger update_inventory.
+    intent = parse_intent(message, allowed_tools=agent["tools"])
 
     if intent["is_tool_call"]:
         result = _handle_tool_call(
-            cursor, user_id, intent["tool_name"], intent["parameters"], message
+            cursor, user_id, agent_id, intent["tool_name"], intent["parameters"], message
         )
         conn.commit()
         conn.close()
         return result
 
-    # not a tool call — answer as normal chat
-    answer = groq_chat(system_prompt=INTERNAL_SYSTEM_PROMPT, user_message=message, max_tokens=800)
+    # not a tool call — answer as normal chat, in character for this agent
+    system_prompt = INTERNAL_SYSTEM_PROMPT_TEMPLATE.format(
+        agent_name=agent["name"],
+        agent_description=agent.get("description") or "You help with general work questions.",
+    ) if agent.get("name") else FALLBACK_SYSTEM_PROMPT
+
+    answer = groq_chat(system_prompt=system_prompt, user_message=message, max_tokens=800)
 
     _write_audit_log(
-        cursor, user_id, "employee-chat", "internal_ai", "chat",
+        cursor, user_id, agent_id, "internal_ai", "chat",
         params_json, 5, "approved", "Scanned clean; answered directly.",
         answer=answer,
     )
@@ -287,7 +325,7 @@ def chat_external(payload: ExternalChatRequest, current_user: dict = Depends(get
 
     if verdict["risk_level"] == "borderline":
         queue_id = _queue_for_approval(
-            cursor, user_id, "external_ai", params_json, 60, verdict["reason"]
+            cursor, user_id, "employee-chat", "external_ai", params_json, 60, verdict["reason"]
         )
         _write_audit_log(
             cursor, user_id, "employee-chat", "external_ai", "chat",
@@ -368,6 +406,7 @@ def _build_turn(row: dict) -> list[dict]:
         "reason": row["reason"] if status != "answered" else None,
         "queue_id": row["queue_id"],
         "provider": provider,
+        "agent_id": row["agent_id"],
     }
 
     return [{"role": "user", "text": user_text}, assistant_message]
@@ -389,7 +428,9 @@ def chat_history(current_user: dict = Depends(get_current_user)):
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
-    internal_messages = []
+    # Grouped by agent_id so the frontend can show separate history per
+    # agent tab (Refund / Support / Inventory), plus external stays separate.
+    internal_by_agent = {}
     external_messages = []
 
     for row in rows:
@@ -397,9 +438,10 @@ def chat_history(current_user: dict = Depends(get_current_user)):
         if row["tool_name"] == "external_ai":
             external_messages.extend(turn)
         else:
-            internal_messages.extend(turn)
+            agent_id = row["agent_id"] or DEFAULT_AGENT_ID
+            internal_by_agent.setdefault(agent_id, []).extend(turn)
 
-    return {"internal": internal_messages, "external": external_messages}
+    return {"internal_by_agent": internal_by_agent, "external": external_messages}
 
 @router.delete("/history")
 def clear_my_chat_history(current_user: dict = Depends(get_current_user)):
@@ -437,13 +479,14 @@ def chat_history_for_user(
     rows = [dict(row) for row in cursor.fetchall()]
     conn.close()
 
-    internal_messages = []
+    internal_by_agent = {}
     external_messages = []
     for row in rows:
         turn = _build_turn(row)
         if row["tool_name"] == "external_ai":
             external_messages.extend(turn)
         else:
-            internal_messages.extend(turn)
+            agent_id = row["agent_id"] or DEFAULT_AGENT_ID
+            internal_by_agent.setdefault(agent_id, []).extend(turn)
 
-    return {"internal": internal_messages, "external": external_messages}
+    return {"internal_by_agent": internal_by_agent, "external": external_messages}

@@ -1,9 +1,7 @@
 // frontend/src/pages/EmployeeHistories.jsx
 import { useEffect, useState } from 'react'
 import { Users, MessageCircle, ChevronDown, ChevronUp, Search } from 'lucide-react'
-import client from '../api/client'
-
-const BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+import client, { getAgents } from '../api/client'
 
 function ChatBubbleReadOnly({ msg }) {
   if (msg.role === 'user') {
@@ -49,9 +47,9 @@ function ChatBubbleReadOnly({ msg }) {
   )
 }
 
-function EmployeeHistoryCard({ employee }) {
+function EmployeeHistoryCard({ employee, agents }) {
   const [open,     setOpen]     = useState(false)
-  const [tab,      setTab]      = useState('internal')
+  const [tab,      setTab]      = useState(null) // agent id, or 'external'
   const [history,  setHistory]  = useState(null)
   const [loading,  setLoading]  = useState(false)
 
@@ -62,7 +60,7 @@ function EmployeeHistoryCard({ employee }) {
       const res = await client.get(`/chat/history/user/${employee.id}`)
       setHistory(res.data)
     } catch {
-      setHistory({ internal: [], external: [] })
+      setHistory({ internal_by_agent: {}, external: [] })
     } finally {
       setLoading(false)
     }
@@ -71,12 +69,22 @@ function EmployeeHistoryCard({ employee }) {
   const toggle = () => {
     const opening = !open
     setOpen(opening)
-    if (opening) load()
+    if (opening) {
+      if (!tab) setTab(agents[0]?.id ?? 'external')
+      load()
+    }
   }
 
-  const internalCount = history
-    ? history.internal.filter(m => m.role === 'user').length
-    : employee.chat_count ?? '?'
+  const internalByAgent = history?.internal_by_agent || {}
+  const totalInternalCount = Object.values(internalByAgent)
+    .flat()
+    .filter(m => m.role === 'user').length
+  const externalCount = (history?.external || []).filter(m => m.role === 'user').length
+  const totalCount = history ? totalInternalCount + externalCount : employee.chat_count ?? '?'
+
+  const activeMessages = tab === 'external'
+    ? (history?.external || [])
+    : (internalByAgent[tab] || [])
 
   return (
     <div className="bg-surface border border-wire rounded-lg overflow-hidden">
@@ -98,7 +106,7 @@ function EmployeeHistoryCard({ employee }) {
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5 text-xs text-muted">
             <MessageCircle size={12} />
-            <span>{internalCount} messages</span>
+            <span>{totalCount} messages</span>
           </div>
           {open ? <ChevronUp size={16} className="text-muted" /> : <ChevronDown size={16} className="text-muted" />}
         </div>
@@ -107,21 +115,31 @@ function EmployeeHistoryCard({ employee }) {
       {/* Expanded history */}
       {open && (
         <div className="border-t border-wire px-5 py-4">
-          {/* Sub-tabs */}
-          <div className="flex gap-2 mb-4">
-            {['internal', 'external'].map(t => (
+          {/* Sub-tabs — one per agent, plus External AI */}
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {agents.map(a => (
               <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors capitalize
-                  ${tab === t
+                key={a.id}
+                onClick={() => setTab(a.id)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors
+                  ${tab === a.id
                     ? 'bg-signal/20 text-signal border border-signal/30'
                     : 'text-muted border border-wire hover:text-ink'
                   }`}
               >
-                {t === 'internal' ? 'Internal AI' : 'External AI'}
+                {a.name}
               </button>
             ))}
+            <button
+              onClick={() => setTab('external')}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors
+                ${tab === 'external'
+                  ? 'bg-signal/20 text-signal border border-signal/30'
+                  : 'text-muted border border-wire hover:text-ink'
+                }`}
+            >
+              External AI
+            </button>
           </div>
 
           {loading ? (
@@ -130,16 +148,13 @@ function EmployeeHistoryCard({ employee }) {
                 <div key={i} className="shimmer h-10 rounded-lg" />
               ))}
             </div>
-          ) : (() => {
-            const msgs = history?.[tab] || []
-            return msgs.length === 0 ? (
-              <p className="text-muted text-sm text-center py-6">No {tab} chat history</p>
-            ) : (
-              <div className="max-h-80 overflow-y-auto pr-1">
-                {msgs.map((msg, i) => <ChatBubbleReadOnly key={i} msg={msg} />)}
-              </div>
-            )
-          })()}
+          ) : activeMessages.length === 0 ? (
+            <p className="text-muted text-sm text-center py-6">No chat history</p>
+          ) : (
+            <div className="max-h-80 overflow-y-auto pr-1">
+              {activeMessages.map((msg, i) => <ChatBubbleReadOnly key={i} msg={msg} />)}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -148,13 +163,23 @@ function EmployeeHistoryCard({ employee }) {
 
 export default function EmployeeHistories() {
   const [employees, setEmployees] = useState([])
-  const [loading,   setLoading]   = useState(true)
-  const [search,    setSearch]    = useState('')
+  const [agents,     setAgents]   = useState([])
+  const [loading,    setLoading]  = useState(true)
+  const [search,     setSearch]   = useState('')
 
   useEffect(() => {
-    client.get('/auth/users')
-      .then(res => setEmployees(res.data.filter(u => u.role === 'employee')))
-      .catch(() => setEmployees([]))
+    Promise.all([
+      client.get('/auth/users'),
+      getAgents(),
+    ])
+      .then(([usersRes, agentsRes]) => {
+        setEmployees((usersRes.data || []).filter(u => u.role === 'employee'))
+        setAgents(agentsRes.data || [])
+      })
+      .catch(() => {
+        setEmployees([])
+        setAgents([])
+      })
       .finally(() => setLoading(false))
   }, [])
 
@@ -194,7 +219,7 @@ export default function EmployeeHistories() {
       ) : (
         <div className="space-y-3">
           {filtered.map(emp => (
-            <EmployeeHistoryCard key={emp.id} employee={emp} />
+            <EmployeeHistoryCard key={emp.id} employee={emp} agents={agents} />
           ))}
         </div>
       )}

@@ -1,13 +1,13 @@
 // frontend/src/pages/MyRequests.jsx
 import { useEffect, useState } from 'react'
 import { Clock, CheckCircle, XCircle, PauseCircle, RefreshCw } from 'lucide-react'
-import { getAuditLogs } from '../api/client'
 
-const DECISIONS = ['all', 'approved', 'blocked', 'paused']
+const DECISIONS = ['all', 'approved', 'blocked', 'denied', 'paused']
 
 const DECISION_CONFIG = {
   approved: { icon: CheckCircle,  color: 'text-low',  bg: 'bg-low/10  border-low/20',  label: 'Approved' },
   blocked:  { icon: XCircle,      color: 'text-crit', bg: 'bg-crit/10 border-crit/20', label: 'Blocked'  },
+  denied:   { icon: XCircle,      color: 'text-crit', bg: 'bg-crit/10 border-crit/20', label: 'Denied'   },
   paused:   { icon: PauseCircle,  color: 'text-high', bg: 'bg-high/10 border-high/20', label: 'Pending Review' },
 }
 
@@ -22,6 +22,50 @@ function DecisionBadge({ decision }) {
   )
 }
 
+// Groups paused + resolved rows that represent the same request into one
+// card. A paused row and its later approved/denied row share the same
+// tool_name, agent_id and parameters (the resolve step never changes them),
+// so that combination is used as the grouping key.
+function groupRequests(rows) {
+  const groups = new Map()
+
+  for (const row of rows) {
+    const key = `${row.tool_name ?? ''}|${row.agent_id ?? ''}|${row.parameters ?? ''}`
+    if (!groups.has(key)) {
+      groups.set(key, [])
+    }
+    groups.get(key).push(row)
+  }
+
+  const result = []
+  for (const entries of groups.values()) {
+    // oldest first, so [0] is the original request and the last entry is
+    // the most recent status (e.g. the admin's approve/deny)
+    entries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    const original = entries[0]
+    const latest = entries[entries.length - 1]
+
+    result.push({
+      id: latest.id,
+      tool_name: latest.tool_name,
+      agent_id: latest.agent_id,
+      parameters: latest.parameters,
+      risk_score: latest.risk_score,
+      decision: latest.decision,
+      reason: latest.reason,
+      reviewed_by: latest.reviewed_by,
+      timestamp: original.timestamp,
+      resolved_at: entries.length > 1 ? latest.timestamp : null,
+      original_reason: original.reason,
+      wasResolved: entries.length > 1,
+    })
+  }
+
+  // newest first, by the original request time
+  result.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  return result
+}
+
 export default function MyRequests() {
   const [logs,     setLogs]     = useState([])
   const [loading,  setLoading]  = useState(true)
@@ -34,18 +78,19 @@ export default function MyRequests() {
     // .replace(/\/$/, '') strips any trailing slash from the env var so we
     // never accidentally build a double-slash URL like ".../aegis-ai//audit/my"
     const base = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
-    fetch(`${base}/audit/my` +
-      (filter !== 'all' ? `?decision=${filter}` : ''), {
+    fetch(`${base}/audit/my`, {
       headers: {
         Authorization: `Bearer ${localStorage.getItem('aegis_token')}`,
       }
     })
       .then(r => r.json())
-      .then(data => setLogs(Array.isArray(data) ? data : []))
+      .then(data => setLogs(groupRequests(Array.isArray(data) ? data : [])))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [filter])
+  useEffect(() => { load() }, [])
+
+  const visibleLogs = filter === 'all' ? logs : logs.filter(log => log.decision === filter)
 
   return (
     <div className="p-8">
@@ -89,7 +134,7 @@ export default function MyRequests() {
             <div key={i} className="shimmer h-16 rounded-lg" />
           ))}
         </div>
-      ) : logs.length === 0 ? (
+      ) : visibleLogs.length === 0 ? (
         <div className="text-center py-20">
           <Clock size={32} className="text-wire mx-auto mb-3" />
           <p className="text-muted text-sm">No requests found</p>
@@ -99,7 +144,7 @@ export default function MyRequests() {
         </div>
       ) : (
         <div className="space-y-2">
-          {logs.map(log => (
+          {visibleLogs.map(log => (
             <div key={log.id}>
               <div
                 onClick={() => setExpanded(expanded === log.id ? null : log.id)}
@@ -138,8 +183,10 @@ export default function MyRequests() {
                 {expanded === log.id && (
                   <div className="mt-4 pt-4 border-t border-wire grid grid-cols-2 gap-4 text-xs">
                     <div>
-                      <p className="text-muted mb-1">Reason</p>
-                      <p className="text-ink leading-relaxed">{log.reason ?? '—'}</p>
+                      <p className="text-muted mb-1">
+                        {log.wasResolved ? 'Original reason' : 'Reason'}
+                      </p>
+                      <p className="text-ink leading-relaxed">{log.original_reason ?? '—'}</p>
                     </div>
                     {log.parameters && (
                       <div>
@@ -156,6 +203,18 @@ export default function MyRequests() {
                           <PauseCircle size={12} />
                           This request is pending admin review. You'll see the outcome here once reviewed.
                         </p>
+                      </div>
+                    )}
+                    {log.wasResolved && (
+                      <div className="col-span-2 pt-3 border-t border-wire">
+                        <p className="text-muted mb-1">
+                          Admin note
+                          {log.reviewed_by ? ` — ${log.reviewed_by}` : ''}
+                          {log.resolved_at
+                            ? ` · ${new Date(log.resolved_at).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' })}`
+                            : ''}
+                        </p>
+                        <p className="text-ink leading-relaxed">{log.reason ?? '—'}</p>
                       </div>
                     )}
                   </div>

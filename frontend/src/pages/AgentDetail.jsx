@@ -35,10 +35,10 @@ export default function AgentDetail() {
     Promise.all([getAgent(id), getTools(), getAuditLogs()])
       .then(([a, t, l]) => {
         setAgent(a.data)
-        // Filter tools that belong to this agent
-        const agentTools = (t.data ?? []).filter(tool =>
-          tool.agent_id === id || tool.assigned_agents?.includes(id)
-        )
+        // A tool doesn't know which agent(s) use it — ownership lives the
+        // other way around: the agent's own `tools` array holds tool NAMES.
+        const agentToolNames = new Set(a.data?.tools ?? [])
+        const agentTools = (t.data ?? []).filter(tool => agentToolNames.has(tool.name))
         setTools(agentTools)
         // Audit logs for this agent
         const agentLogs = (l.data ?? []).filter(log => log.agent_id === id).slice(0, 50)
@@ -220,8 +220,8 @@ export default function AgentDetail() {
               <tbody>
                 {logs.slice(0, 10).map(log => (
                   <tr key={log.id} className="table-row">
-                    <td className="px-5 py-3 text-ink">{log.action_type}</td>
-                    <td className="px-4 py-3 text-muted font-mono text-xs">{log.tool_id}</td>
+                    <td className="px-5 py-3 text-ink">{log.action}</td>
+                    <td className="px-4 py-3 text-muted font-mono text-xs">{log.tool_name}</td>
                     <td className="px-4 py-3">
                       <span className={`badge ${
                         log.decision === 'approved' ? 'bg-low/10 text-low border-low/20' :

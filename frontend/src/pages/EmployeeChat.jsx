@@ -1,7 +1,7 @@
 // frontend/src/pages/EmployeeChat.jsx
 import { useState, useRef, useEffect } from 'react'
 import { Trash2 } from 'lucide-react'
-import client, { getChatHistory, clearMyChatHistory } from '../api/client'
+import client, { getChatHistory, clearMyChatHistory, getAgents } from '../api/client'
 
 const PROVIDERS = [
   { value: 'gpt-oss-fast',      label: 'GPT-OSS Fast'      },
@@ -77,13 +77,13 @@ function ChatBubble({ msg }) {
   )
 }
 
-function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, onNewMessage }) {
+function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, onNewMessage, placeholder }) {
   const [messages, setMessages] = useState(initialMessages || [])
   const [input, setInput]       = useState('')
   const [loading, setLoading]   = useState(false)
   const bottomRef               = useRef(null)
 
-  // Sync if parent reloads history (e.g. after clear)
+  // Sync if parent reloads history (e.g. after clear, or switching agent tabs)
   useEffect(() => { setMessages(initialMessages || []) }, [initialMessages])
 
   useEffect(() => {
@@ -135,7 +135,7 @@ function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, o
       <div className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="text-sm text-[#7f96b3] text-center mt-8">
-            Start a conversation below.
+            {placeholder || 'Start a conversation below.'}
           </p>
         )}
         {messages.map((msg, i) => <ChatBubble key={i} msg={msg} />)}
@@ -174,18 +174,33 @@ function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, o
 }
 
 export default function EmployeeChat() {
-  const [tab,              setTab]              = useState('internal')
-  const [provider,         setProvider]         = useState('gpt-oss-fast')
-  const [internalMessages, setInternalMessages] = useState([])
-  const [externalMessages, setExternalMessages] = useState([])
-  const [historyLoading,   setHistoryLoading]   = useState(true)
-  const [clearing,         setClearing]         = useState(false)
+  const [agents,            setAgents]           = useState([])
+  const [agentsLoading,     setAgentsLoading]     = useState(true)
+  const [tab,               setTab]               = useState(null) // agent id, or 'external'
+  const [provider,          setProvider]          = useState('gpt-oss-fast')
+  const [internalByAgent,   setInternalByAgent]   = useState({})
+  const [externalMessages,  setExternalMessages]  = useState([])
+  const [historyLoading,    setHistoryLoading]    = useState(true)
+  const [clearing,          setClearing]          = useState(false)
+
+  // Load the real agent list from the admin's Agent Inventory, so employee
+  // tabs always match whatever agents actually exist — no hardcoding agent
+  // names in two places that can drift out of sync.
+  useEffect(() => {
+    getAgents()
+      .then(({ data }) => {
+        const list = data || []
+        setAgents(list)
+        if (list.length > 0) setTab(list[0].id)
+      })
+      .finally(() => setAgentsLoading(false))
+  }, [])
 
   const loadHistory = async () => {
     setHistoryLoading(true)
     try {
       const { data } = await getChatHistory()
-      setInternalMessages(data.internal || [])
+      setInternalByAgent(data.internal_by_agent || {})
       setExternalMessages(data.external || [])
     } catch {
       // silently fail — user just starts fresh
@@ -201,7 +216,7 @@ export default function EmployeeChat() {
     setClearing(true)
     try {
       await clearMyChatHistory()
-      setInternalMessages([])
+      setInternalByAgent({})
       setExternalMessages([])
     } catch {
       alert('Failed to clear history. Please try again.')
@@ -209,6 +224,9 @@ export default function EmployeeChat() {
       setClearing(false)
     }
   }
+
+  const activeAgent = agents.find(a => a.id === tab)
+  const loading = agentsLoading || historyLoading || tab === null
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -225,43 +243,46 @@ export default function EmployeeChat() {
         </button>
       </div>
 
-      {/* Tab switcher */}
-      <div className="flex gap-2 mb-4">
-        {['internal', 'external'].map(t => (
+      {/* Tab switcher — one tab per real agent, plus External AI */}
+      <div className="flex gap-2 mb-4 flex-wrap">
+        {agents.map(a => (
           <button
-            key={t}
-            onClick={() => setTab(t)}
+            key={a.id}
+            onClick={() => setTab(a.id)}
             className={`px-4 py-2 rounded-lg text-sm font-medium ${
-              tab === t
+              tab === a.id
                 ? 'bg-blue-600 text-white'
                 : 'bg-[#182333] text-[#9eb3cc] border border-[#2a3b52]'
             }`}
           >
-            {t === 'internal' ? 'AI Assistant' : 'External AI'}
+            {a.name}
           </button>
         ))}
+        <button
+          onClick={() => setTab('external')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            tab === 'external'
+              ? 'bg-blue-600 text-white'
+              : 'bg-[#182333] text-[#9eb3cc] border border-[#2a3b52]'
+          }`}
+        >
+          External AI
+        </button>
       </div>
 
-      {historyLoading ? (
+      {loading ? (
         <div className="h-[70vh] border border-[#24344a] rounded-lg bg-[#0f1724]
                         flex items-center justify-center text-[#6f89a8] text-sm">
-          Loading history…
+          Loading…
         </div>
-      ) : tab === 'internal' ? (
-        <ChatPanel
-          key="internal"
-          endpoint="/chat/internal"
-          extraFields={{}}
-          initialMessages={internalMessages}
-          onNewMessage={loadHistory}
-        />
-      ) : (
+      ) : tab === 'external' ? (
         <ChatPanel
           key="external"
           endpoint="/chat/external"
           extraFields={{ provider }}
           initialMessages={externalMessages}
           onNewMessage={loadHistory}
+          placeholder="Start a conversation with an external AI provider below."
           providerSelector={
             <div className="border-b border-[#24344a] p-3">
               <label className="text-xs font-medium text-[#6f89a8] mr-2">Provider:</label>
@@ -277,6 +298,19 @@ export default function EmployeeChat() {
                 ))}
               </select>
             </div>
+          }
+        />
+      ) : (
+        <ChatPanel
+          key={tab}
+          endpoint="/chat/internal"
+          extraFields={{ agent_id: tab }}
+          initialMessages={internalByAgent[tab] || []}
+          onNewMessage={loadHistory}
+          placeholder={
+            activeAgent
+              ? `Start a conversation with ${activeAgent.name} below.`
+              : 'Start a conversation below.'
           }
         />
       )}

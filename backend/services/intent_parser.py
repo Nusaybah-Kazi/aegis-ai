@@ -10,6 +10,11 @@ If a tool-call intent is detected, extracts the tool name and any relevant
 parameters (primarily 'amount', since that's what risk_engine/policy_checker
 key off of).
 
+An optional `allowed_tools` list scopes which tools the model is even shown —
+this is what lets each agent (Refund, Support, Inventory) only ever match
+against its own tool set, rather than the full catalog. If omitted, all
+registered tools are considered (used for internal/back-compat callers).
+
 Returns a dict:
   {
     "is_tool_call": bool,
@@ -31,14 +36,24 @@ from backend.database.db import get_connection
 from backend.services.groq_client import chat
 
 
-def _get_tool_catalog() -> list[dict]:
-    """Fetch name + description for every tool, to ground the LLM's choices."""
+def _get_tool_catalog(allowed_tools: list[str] | None = None) -> list[dict]:
+    """
+    Fetch name + description for tools, to ground the LLM's choices.
+    If allowed_tools is given, only those tools are returned — this is how
+    a specific agent's chat gets scoped to only its own tool set.
+    """
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT name, description FROM tools")
     rows = cursor.fetchall()
     conn.close()
-    return [dict(row) for row in rows]
+    tools = [dict(row) for row in rows]
+
+    if allowed_tools is not None:
+        allowed_set = set(allowed_tools)
+        tools = [t for t in tools if t["name"] in allowed_set]
+
+    return tools
 
 
 def _build_system_prompt(tools: list[dict]) -> str:
@@ -61,6 +76,9 @@ Rules:
   one of the tools above (e.g. "process a refund of 50000", "look up order #123",
   "send an alert about low stock").
 - tool_name must be one of the exact tool names listed above, or null if is_tool_call is false.
+- If the message requests an action that is NOT one of the tools listed above
+  (even if it sounds like a reasonable request), treat it as is_tool_call: false —
+  this agent does not have access to that action.
 - parameters should capture any numeric amount mentioned as {{"amount": <number>}}.
   If no amount is mentioned or not applicable, use an empty object {{}}.
 - General questions, greetings, or requests for information/explanation
@@ -86,13 +104,16 @@ def _fail_closed(reason: str) -> dict:
     }
 
 
-def parse_intent(message: str) -> dict:
+def parse_intent(message: str, allowed_tools: list[str] | None = None) -> dict:
     """
     Determines whether a chat message intends to invoke a real tool,
     and if so, which one and with what parameters.
 
     Args:
         message: the raw employee chat message
+        allowed_tools: optional list of tool names this agent may use.
+                       If provided, the model only ever sees/matches these —
+                       it cannot trigger a tool outside this agent's scope.
 
     Returns:
         dict with is_tool_call, tool_name, parameters, confidence_note
@@ -100,9 +121,9 @@ def parse_intent(message: str) -> dict:
     if not message or not message.strip():
         return _fail_closed("empty message")
 
-    tools = _get_tool_catalog()
+    tools = _get_tool_catalog(allowed_tools)
     if not tools:
-        return _fail_closed("no tools registered in catalog")
+        return _fail_closed("no tools registered in catalog for this agent")
 
     valid_tool_names = {t["name"] for t in tools}
     system_prompt = _build_system_prompt(tools)
@@ -120,9 +141,9 @@ def parse_intent(message: str) -> dict:
             parameters = {}
 
         # Guard: if the model hallucinated a tool name that doesn't exist,
-        # don't let a fake tool call through.
+        # or named a tool outside this agent's allowed scope, don't let it through.
         if is_tool_call and tool_name not in valid_tool_names:
-            return _fail_closed(f"model named unknown tool: {tool_name!r}")
+            return _fail_closed(f"model named unknown or out-of-scope tool: {tool_name!r}")
 
         if not is_tool_call:
             tool_name = None
@@ -143,3 +164,5 @@ if __name__ == "__main__":
     print("Refund request:", parse_intent("Please process a refund of rupees 50000 to my account"))
     print("Normal question:", parse_intent("What's our refund policy for digital products?"))
     print("Order lookup:", parse_intent("Can you check the status of order #4521?"))
+    print("Scoped — refund tool asked to update inventory:",
+          parse_intent("update inventory for sku-99 by -5", allowed_tools=["process_refund", "query_order", "send_notification"]))
