@@ -1,14 +1,78 @@
 import { useNavigate } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
+import { Sun, Moon } from "lucide-react";
 
 const ACCENT = "#6366F1";
 const ACCENT_LIGHT = "rgba(99,102,241,0.1)";
 const ACCENT_BORDER = "rgba(99,102,241,0.25)";
-const NAVY = "#0B1736";
-const BG = "#F8F9FC";
+
+const THEMES = {
+  light: {
+    bg: "#F8F9FC",
+    surface: "#fff",
+    heading: "#0B1736",
+    text: "#555",
+    textMuted: "#666",
+    textFaint: "#999",
+    textFainter: "#bbb",
+    border: "rgba(0,0,0,0.08)",
+    borderSoft: "rgba(0,0,0,0.06)",
+    borderCard: "rgba(0,0,0,0.07)",
+    navBg: "rgba(248,249,252,0.92)",
+    dotGrid: "#d0d5e8",
+    ctaBg: "#0B1736",
+    ctaText: "#F8F9FC",
+    ctaTextMuted: "rgba(248,249,252,0.55)",
+    ctaTextFaint: "rgba(248,249,252,0.4)",
+    ctaTextFainter: "rgba(248,249,252,0.25)",
+    ctaBorder: "rgba(255,255,255,0.07)",
+    shadow: "rgba(0,0,0,0.1)",
+  },
+  dark: {
+    bg: "#0A0E1A",
+    surface: "#111827",
+    heading: "#F1F5F9",
+    text: "#A3AFC2",
+    textMuted: "#98A2B3",
+    textFaint: "#788296",
+    textFainter: "#5B6577",
+    border: "rgba(255,255,255,0.1)",
+    borderSoft: "rgba(255,255,255,0.07)",
+    borderCard: "rgba(255,255,255,0.08)",
+    navBg: "rgba(10,14,26,0.85)",
+    dotGrid: "rgba(255,255,255,0.08)",
+    ctaBg: "#05070D",
+    ctaText: "#F1F5F9",
+    ctaTextMuted: "rgba(241,245,249,0.55)",
+    ctaTextFaint: "rgba(241,245,249,0.4)",
+    ctaTextFainter: "rgba(241,245,249,0.25)",
+    ctaBorder: "rgba(255,255,255,0.08)",
+    shadow: "rgba(0,0,0,0.4)",
+  },
+}
+
+// ── Theme toggle ──────────────────────────────────────────────
+function ThemeToggle({ dark, onToggle, scrolled, t }) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-label="Toggle dark mode"
+      style={{
+        display: "flex", alignItems: "center", justifyContent: "center",
+        width: 34, height: 34, borderRadius: 8,
+        border: `1px solid ${t.border}`,
+        background: scrolled ? t.surface : "transparent",
+        color: t.heading, cursor: "pointer",
+        transition: "background 0.2s, border-color 0.2s",
+      }}
+    >
+      {dark ? <Sun size={16} /> : <Moon size={16} />}
+    </button>
+  );
+}
 
 // ── Navbar ────────────────────────────────────────────────────
-function NavBar() {
+function NavBar({ dark, onToggleTheme, t }) {
     const [scrolled, setScrolled] = useState(false);
     const nav = useNavigate();
 
@@ -24,27 +88,27 @@ function NavBar() {
             padding: scrolled ? "12px 48px" : "24px 48px",
             display: "flex", alignItems: "center", justifyContent: "space-between",
             backdropFilter: scrolled ? "blur(12px)" : "none",
-            background: scrolled ? "rgba(248,249,252,0.92)" : "transparent",
-            borderBottom: scrolled ? "1px solid rgba(0,0,0,0.08)" : "none",
+            background: scrolled ? t.navBg : "transparent",
+            borderBottom: scrolled ? `1px solid ${t.border}` : "none",
             transition: "all 0.3s ease",
         }}>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20, color: NAVY, letterSpacing: "-0.02em" }}>AEGIS</span>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20, color: t.heading, letterSpacing: "-0.02em" }}>AEGIS</span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20, color: ACCENT }}>AI</span>
             </div>
 
             <nav style={{ display: "flex", alignItems: "center", gap: 32 }}>
                 {["How it works", "Why Aegis"].map(label => (
                     <a key={label} href={`#${label.toLowerCase().replace(/ /g, "-")}`}
-                        style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#555", textDecoration: "none", transition: "color 0.2s" }}
-                        onMouseEnter={e => e.target.style.color = NAVY}
-                        onMouseLeave={e => e.target.style.color = "#555"}
+                        style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: t.text, textDecoration: "none", transition: "color 0.2s" }}
+                        onMouseEnter={e => e.target.style.color = t.heading}
+                        onMouseLeave={e => e.target.style.color = t.text}
                     >{label}</a>
                 ))}
                 <button onClick={() => nav("/login")}
-                    style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: "#555", background: "none", border: "none", cursor: "pointer", padding: 0, transition: "color 0.2s" }}
-                    onMouseEnter={e => e.target.style.color = NAVY}
-                    onMouseLeave={e => e.target.style.color = "#555"}
+                    style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, color: t.text, background: "none", border: "none", cursor: "pointer", padding: 0, transition: "color 0.2s" }}
+                    onMouseEnter={e => e.target.style.color = t.heading}
+                    onMouseLeave={e => e.target.style.color = t.text}
                 >Log in</button>
                 <button onClick={() => nav("/register")}
                     style={{
@@ -56,13 +120,14 @@ function NavBar() {
                     onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = `0 4px 16px rgba(99,102,241,0.4)`; }}
                     onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
                 >Get Started</button>
+                <ThemeToggle dark={dark} onToggle={onToggleTheme} scrolled={scrolled} t={t} />
             </nav>
         </header>
     );
 }
 
 // ── Gateway Card ──────────────────────────────────────────────
-function GatewayCard() {
+function GatewayCard({ t }) {
     const [stage, setStage] = useState(0);
 
     useEffect(() => {
@@ -76,10 +141,10 @@ function GatewayCard() {
 
     return (
         <div style={{
-            background: "#fff",
-            border: "1px solid rgba(0,0,0,0.1)",
+            background: t.surface,
+            border: `1px solid ${t.border}`,
             borderRadius: 14, padding: "28px 32px", width: 320,
-            boxShadow: "0 20px 60px rgba(0,0,0,0.1)",
+            boxShadow: `0 20px 60px ${t.shadow}`,
             fontFamily: "'Space Grotesk', sans-serif",
         }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
@@ -87,16 +152,16 @@ function GatewayCard() {
                 <span style={{
                     fontSize: 10, padding: "3px 8px", borderRadius: 4, fontWeight: 600,
                     textTransform: "uppercase", letterSpacing: "0.07em", transition: "all 0.4s",
-                    background: status === "paused" ? "rgba(239,68,68,0.1)" : status === "evaluating" ? ACCENT_LIGHT : "rgba(0,0,0,0.05)",
-                    color: status === "paused" ? "#dc2626" : status === "evaluating" ? ACCENT : "#999",
+                    background: status === "paused" ? "rgba(239,68,68,0.1)" : status === "evaluating" ? ACCENT_LIGHT : t.borderSoft,
+                    color: status === "paused" ? "#dc2626" : status === "evaluating" ? ACCENT : t.textFaint,
                 }}>
                     {status === "paused" ? "⚠ Paused" : status === "evaluating" ? "● Evaluating" : "● Monitoring"}
                 </span>
             </div>
 
             <div style={{ marginBottom: 18 }}>
-                <div style={{ fontSize: 11, color: "#999", marginBottom: 3 }}>Agent</div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: NAVY }}>Customer Refund Agent</div>
+                <div style={{ fontSize: 11, color: t.textFaint, marginBottom: 3 }}>Agent</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: t.heading }}>Customer Refund Agent</div>
                 <div style={{ fontSize: 12, color: ACCENT, marginTop: 2 }}>process_refund</div>
             </div>
 
@@ -105,9 +170,9 @@ function GatewayCard() {
                 { label: "Risk Score", value: status === "evaluating" || status === "paused" ? "92" : "—", highlight: status === "paused" },
                 { label: "Policy", value: status === "paused" ? "Refund Limit" : "—", highlight: false },
             ].map(({ label, value, highlight }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid rgba(0,0,0,0.06)" }}>
-                    <span style={{ fontSize: 13, color: "#777" }}>{label}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: highlight ? "#dc2626" : NAVY, transition: "color 0.4s" }}>{value}</span>
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${t.borderSoft}` }}>
+                    <span style={{ fontSize: 13, color: t.textMuted }}>{label}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: highlight ? "#dc2626" : t.heading, transition: "color 0.4s" }}>{value}</span>
                 </div>
             ))}
 
@@ -115,7 +180,7 @@ function GatewayCard() {
                 {status === "paused" ? (
                     <div style={{ background: "rgba(239,68,68,0.06)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 8, padding: "12px 0" }}>
                         <div style={{ fontSize: 13, fontWeight: 700, color: "#dc2626" }}>Action Paused</div>
-                        <div style={{ fontSize: 11, color: "#999", marginTop: 4 }}>Awaiting admin approval</div>
+                        <div style={{ fontSize: 11, color: t.textFaint, marginTop: 4 }}>Awaiting admin approval</div>
                     </div>
                 ) : status === "evaluating" ? (
                     <div style={{ background: ACCENT_LIGHT, border: `1px solid ${ACCENT_BORDER}`, borderRadius: 8, padding: "12px 0" }}>
@@ -123,31 +188,31 @@ function GatewayCard() {
                     </div>
                 ) : (
                     <div style={{ padding: "12px 0" }}>
-                        <div style={{ fontSize: 12, color: "#bbb" }}>Monitoring for requests</div>
+                        <div style={{ fontSize: 12, color: t.textFainter }}>Monitoring for requests</div>
                     </div>
                 )}
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 16 }}>
                 <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#22c55e" }} />
-                <span style={{ fontSize: 11, color: "#aaa" }}>Audit trail recording</span>
+                <span style={{ fontSize: 11, color: t.textFainter }}>Audit trail recording</span>
             </div>
         </div>
     );
 }
 
 // ── Floating chip ─────────────────────────────────────────────
-function FloatingChip({ children, style }) {
+function FloatingChip({ children, style, t }) {
     return (
         <div style={{
             position: "absolute",
-            background: "#fff",
-            border: "1px solid rgba(0,0,0,0.09)",
+            background: t.surface,
+            border: `1px solid ${t.border}`,
             borderRadius: 8, padding: "8px 14px",
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 11, color: "#555",
+            fontSize: 11, color: t.text,
             whiteSpace: "nowrap",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+            boxShadow: `0 4px 20px ${t.shadow}`,
             ...style,
         }}>
             {children}
@@ -156,19 +221,19 @@ function FloatingChip({ children, style }) {
 }
 
 // ── Hero ──────────────────────────────────────────────────────
-function Hero() {
+function Hero({ t }) {
     const nav = useNavigate();
     return (
         <section style={{
             minHeight: "100vh",
-            background: BG,
+            background: t.bg,
             display: "flex", alignItems: "center",
             padding: "120px 48px 80px",
             position: "relative", overflow: "hidden",
         }}>
             <div style={{
                 position: "absolute", inset: 0, opacity: 0.5,
-                backgroundImage: "radial-gradient(circle, #d0d5e8 1px, transparent 1px)",
+                backgroundImage: `radial-gradient(circle, ${t.dotGrid} 1px, transparent 1px)`,
                 backgroundSize: "32px 32px",
                 pointerEvents: "none",
             }} />
@@ -189,7 +254,7 @@ function Hero() {
                 <h1 style={{
                     fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
                     fontSize: "clamp(38px, 4.5vw, 58px)", lineHeight: 1.1,
-                    letterSpacing: "-0.03em", color: NAVY,
+                    letterSpacing: "-0.03em", color: t.heading,
                     margin: "0 0 22px",
                 }}>
                     AI agents can act<br />on their own.<br />
@@ -198,7 +263,7 @@ function Hero() {
 
                 <p style={{
                     fontFamily: "'Inter', sans-serif", fontSize: 17, lineHeight: 1.7,
-                    color: "#555", maxWidth: 460, margin: "0 0 36px",
+                    color: t.text, maxWidth: 460, margin: "0 0 36px",
                 }}>
                     Aegis AI gives organizations visibility, control, and accountability
                     over every AI agent, tool, and action — before risk becomes an incident.
@@ -217,22 +282,22 @@ function Hero() {
 
                     <a href="#how-it-works" style={{
                         fontFamily: "'Inter', sans-serif", fontSize: 15,
-                        color: "#777", textDecoration: "none", transition: "color 0.2s",
+                        color: t.textFaint, textDecoration: "none", transition: "color 0.2s",
                     }}
-                        onMouseEnter={e => e.target.style.color = NAVY}
-                        onMouseLeave={e => e.target.style.color = "#777"}
+                        onMouseEnter={e => e.target.style.color = t.heading}
+                        onMouseLeave={e => e.target.style.color = t.textFaint}
                     >Explore the platform ↓</a>
                 </div>
 
-                <div style={{ display: "flex", gap: 40, marginTop: 60, paddingTop: 32, borderTop: "1px solid rgba(0,0,0,0.08)" }}>
+                <div style={{ display: "flex", gap: 40, marginTop: 60, paddingTop: 32, borderTop: `1px solid ${t.border}` }}>
                     {[
                         { num: "12", label: "Agents monitored" },
                         { num: "98%", label: "Actions evaluated" },
                         { num: "0", label: "Unreviewed escalations" },
                     ].map(({ num, label }) => (
                         <div key={label}>
-                            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, color: NAVY }}>{num}</div>
-                            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#999", marginTop: 2 }}>{label}</div>
+                            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, color: t.heading }}>{num}</div>
+                            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.textFaint, marginTop: 2 }}>{label}</div>
                         </div>
                     ))}
                 </div>
@@ -241,14 +306,14 @@ function Hero() {
             {/* right */}
             <div style={{ flex: 1, display: "flex", justifyContent: "center", position: "relative", zIndex: 2 }}>
                 <div style={{ position: "relative" }}>
-                    <GatewayCard />
-                    <FloatingChip style={{ top: -18, right: -70, animation: "floatA 4s ease-in-out infinite" }}>
+                    <GatewayCard t={t} />
+                    <FloatingChip t={t} style={{ top: -18, right: -70, animation: "floatA 4s ease-in-out infinite" }}>
                         <span style={{ color: "#22c55e", marginRight: 5 }}>●</span>Risk Engine Active
                     </FloatingChip>
-                    <FloatingChip style={{ bottom: 70, left: -90, animation: "floatB 4s ease-in-out infinite" }}>
+                    <FloatingChip t={t} style={{ bottom: 70, left: -90, animation: "floatB 4s ease-in-out infinite" }}>
                         ● Audit Trail Recording
                     </FloatingChip>
-                    <FloatingChip style={{ bottom: -10, right: -50, animation: "floatA 4s ease-in-out infinite 1s" }}>
+                    <FloatingChip t={t} style={{ bottom: -10, right: -50, animation: "floatA 4s ease-in-out infinite 1s" }}>
                         12 Agents Monitored
                     </FloatingChip>
                 </div>
@@ -266,11 +331,11 @@ function Hero() {
 }
 
 // ── Process step card ─────────────────────────────────────────
-function ProcessStep({ number, title, description, visual }) {
+function ProcessStep({ number, title, description, visual, t }) {
     return (
         <div style={{
             display: "flex", flexDirection: "column", gap: 20,
-            background: "#fff", border: "1px solid rgba(99,102,241,0.12)",
+            background: t.surface, border: `1px solid ${ACCENT_BORDER}`,
             borderRadius: 14, padding: "32px 28px",
             transition: "transform 0.2s, box-shadow 0.2s",
         }}
@@ -284,11 +349,11 @@ function ProcessStep({ number, title, description, visual }) {
                 }}>{number}</span>
             </div>
             <div>
-                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, color: NAVY, marginBottom: 10 }}>{title}</div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.65, color: "#666" }}>{description}</div>
+                <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 700, color: t.heading, marginBottom: 10 }}>{title}</div>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.65, color: t.textMuted }}>{description}</div>
             </div>
             <div style={{
-                background: "#F8F9FC", border: "1px solid rgba(0,0,0,0.06)",
+                background: t.bg, border: `1px solid ${t.borderSoft}`,
                 borderRadius: 10, padding: "20px",
                 fontFamily: "'Space Grotesk', sans-serif",
             }}>
@@ -299,11 +364,11 @@ function ProcessStep({ number, title, description, visual }) {
 }
 
 // ── Process section ───────────────────────────────────────────
-function Process() {
+function Process({ t }) {
     return (
         <section id="how-it-works" style={{
-            background: BG, padding: "100px 48px",
-            borderTop: "1px solid rgba(0,0,0,0.06)",
+            background: t.bg, padding: "100px 48px",
+            borderTop: `1px solid ${t.borderSoft}`,
         }}>
             {/* heading */}
             <div style={{ maxWidth: 560, marginBottom: 64, margin: "0 auto 64px", textAlign: "center" }}>
@@ -317,11 +382,11 @@ function Process() {
                 <h2 style={{
                     fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
                     fontSize: "clamp(30px, 3.5vw, 44px)", lineHeight: 1.15,
-                    letterSpacing: "-0.025em", color: NAVY, margin: "0 0 16px",
+                    letterSpacing: "-0.025em", color: t.heading, margin: "0 0 16px",
                 }}>
                     From AI action to<br />accountable decision.
                 </h2>
-                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, lineHeight: 1.7, color: "#666", margin: 0 }}>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, lineHeight: 1.7, color: t.textMuted, margin: 0 }}>
                     Every agent action passes through the same controlled path before it reaches your systems.
                 </p>
             </div>
@@ -332,6 +397,7 @@ function Process() {
 
                 {/* 1 — Discover */}
                 <ProcessStep
+                    t={t}
                     number="01 — Discover"
                     title="Know what's acting."
                     description="Aegis maps your AI agents, models, tools, APIs, and dependencies into one centralized inventory."
@@ -340,13 +406,13 @@ function Process() {
                             {[
                                 { label: "Customer Refund Agent", type: "Agent", color: ACCENT },
                                 { label: "process_refund", type: "Tool", color: "#3B6FD8" },
-                                { label: "payments-api", type: "API", color: "#0B1736" },
-                                { label: "orders_db", type: "Database", color: "#555" },
+                                { label: "payments-api", type: "API", color: t.heading },
+                                { label: "orders_db", type: "Database", color: t.textMuted },
                             ].map(({ label, type, color }) => (
                                 <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                         <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, flexShrink: 0 }} />
-                                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#444" }}>{label}</span>
+                                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.text }}>{label}</span>
                                     </div>
                                     <span style={{
                                         fontFamily: "'Space Grotesk', sans-serif", fontSize: 10, fontWeight: 600,
@@ -360,14 +426,16 @@ function Process() {
 
                 {/* 2 — Evaluate */}
                 <ProcessStep
+                    t={t}
                     number="02 — Evaluate"
                     title="Know what it's about to do."
                     description="Every agent action is checked for risk and policy violations before it executes."
-                    visual={<EvaluateVisual />}
+                    visual={<EvaluateVisual t={t} />}
                 />
 
                 {/* 3 — Control */}
                 <ProcessStep
+                    t={t}
                     number="03 — Control"
                     title="Know who allowed it."
                     description="Low-risk actions proceed automatically. High-risk actions pause for human approval. Every outcome is recorded."
@@ -378,10 +446,10 @@ function Process() {
                                 { action: "send_notification", risk: 12, verdict: "Allowed", verdictColor: "#16a34a", verdictBg: "rgba(22,163,74,0.08)" },
                                 { action: "process_refund", risk: 92, verdict: "Paused", verdictColor: "#dc2626", verdictBg: "rgba(220,38,38,0.08)" },
                             ].map(({ action, risk, verdict, verdictColor, verdictBg }) => (
-                                <div key={action} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
+                                <div key={action} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.borderSoft}` }}>
                                     <div>
-                                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600, color: "#333" }}>{action}</div>
-                                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#999", marginTop: 1 }}>Risk {risk}</div>
+                                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 11, fontWeight: 600, color: t.text }}>{action}</div>
+                                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: t.textFaint, marginTop: 1 }}>Risk {risk}</div>
                                     </div>
                                     <span style={{
                                         fontFamily: "'Space Grotesk', sans-serif", fontSize: 10, fontWeight: 700,
@@ -399,13 +467,13 @@ function Process() {
 }
 
 // ── Evaluate visual (animated) ────────────────────────────────
-function EvaluateVisual() {
+function EvaluateVisual({ t }) {
     const [score, setScore] = useState(0);
     const [active, setActive] = useState(false);
 
     return (
         <div
-            onMouseEnter={() => { setActive(true); let i = 0; const t = setInterval(() => { i += 4; setScore(Math.min(i, 92)); if (i >= 92) clearInterval(t); }, 20); }}
+            onMouseEnter={() => { setActive(true); let i = 0; const timer = setInterval(() => { i += 4; setScore(Math.min(i, 92)); if (i >= 92) clearInterval(timer); }, 20); }}
             onMouseLeave={() => { setActive(false); setScore(0); }}
             style={{ cursor: "default" }}
         >
@@ -413,26 +481,26 @@ function EvaluateVisual() {
                 { label: "Action", value: "process_refund", mono: true },
                 { label: "Amount", value: "₹30,000", mono: false },
             ].map(({ label, value, mono }) => (
-                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid rgba(0,0,0,0.05)" }}>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#888" }}>{label}</span>
-                    <span style={{ fontFamily: mono ? "'Space Grotesk', sans-serif" : "'Inter', sans-serif", fontSize: 12, fontWeight: 600, color: "#333" }}>{value}</span>
+                <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${t.borderSoft}` }}>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.textFaint }}>{label}</span>
+                    <span style={{ fontFamily: mono ? "'Space Grotesk', sans-serif" : "'Inter', sans-serif", fontSize: 12, fontWeight: 600, color: t.text }}>{value}</span>
                 </div>
             ))}
 
             {/* risk bar */}
             <div style={{ marginTop: 14 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#888" }}>Risk Score</span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.textFaint }}>Risk Score</span>
                     <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: score > 70 ? "#dc2626" : ACCENT }}>{score}</span>
                 </div>
-                <div style={{ height: 5, background: "rgba(0,0,0,0.07)", borderRadius: 3, overflow: "hidden" }}>
+                <div style={{ height: 5, background: t.borderSoft, borderRadius: 3, overflow: "hidden" }}>
                     <div style={{
                         height: "100%", borderRadius: 3, transition: "width 0.05s linear",
                         width: `${score}%`,
                         background: score > 70 ? "#dc2626" : ACCENT,
                     }} />
                 </div>
-                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: "#bbb", marginTop: 8, textAlign: "center" }}>
+                <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 10, color: t.textFainter, marginTop: 8, textAlign: "center" }}>
                     {active ? "Hover to reset" : "Hover to simulate evaluation"}
                 </div>
             </div>
@@ -452,11 +520,11 @@ function EvaluateVisual() {
 }
 
 // ── Why Aegis section ─────────────────────────────────────────
-function WhyAegis() {
+function WhyAegis({ t }) {
     return (
         <section id="why-aegis" style={{
-            background: "#fff", padding: "100px 48px",
-            borderTop: "1px solid rgba(0,0,0,0.06)",
+            background: t.surface, padding: "100px 48px",
+            borderTop: `1px solid ${t.borderSoft}`,
         }}>
             {/* heading */}
             <div style={{ maxWidth: 600, margin: "0 auto 72px", textAlign: "center" }}>
@@ -470,11 +538,11 @@ function WhyAegis() {
                 <h2 style={{
                     fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
                     fontSize: "clamp(30px, 3.5vw, 44px)", lineHeight: 1.15,
-                    letterSpacing: "-0.025em", color: NAVY, margin: "0 0 16px",
+                    letterSpacing: "-0.025em", color: t.heading, margin: "0 0 16px",
                 }}>
                     AI governance shouldn't begin<br />after something goes wrong.
                 </h2>
-                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, lineHeight: 1.7, color: "#666", margin: 0 }}>
+                <p style={{ fontFamily: "'Inter', sans-serif", fontSize: 16, lineHeight: 1.7, color: t.textMuted, margin: 0 }}>
                     Aegis sits between your agents and the real world — evaluating every action before it executes.
                 </p>
             </div>
@@ -484,20 +552,20 @@ function WhyAegis() {
 
                 {/* 1 — Runtime Protection */}
                 <div style={{
-                    background: BG, border: "1px solid rgba(0,0,0,0.07)",
+                    background: t.bg, border: `1px solid ${t.borderCard}`,
                     borderRadius: 14, padding: "32px 28px", display: "flex", flexDirection: "column", gap: 20,
                 }}>
                     <div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: NAVY, marginBottom: 10 }}>
+                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: t.heading, marginBottom: 10 }}>
                             Runtime Protection
                         </div>
-                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.6, color: "#666" }}>
+                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.6, color: t.textMuted }}>
                             Stop risky actions before they execute. Aegis evaluates every tool call at runtime, not after the fact.
                         </div>
                     </div>
                     {/* visual — request approaching gateway */}
                     <div style={{
-                        background: "#fff", border: "1px solid rgba(0,0,0,0.07)",
+                        background: t.surface, border: `1px solid ${t.borderCard}`,
                         borderRadius: 10, padding: "20px",
                         display: "flex", flexDirection: "column", gap: 10,
                     }}>
@@ -505,7 +573,7 @@ function WhyAegis() {
                             { label: "Agent request", status: "incoming", color: "#3B6FD8" },
                             { label: "Gateway intercept", status: "active", color: ACCENT },
                             { label: "Risk evaluated", status: "done", color: "#16a34a" },
-                        ].map(({ label, status, color }, i) => (
+                        ].map(({ label, color }, i) => (
                             <div key={label} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                                 <div style={{
                                     width: 28, height: 28, borderRadius: "50%", flexShrink: 0,
@@ -515,10 +583,10 @@ function WhyAegis() {
                                     <div style={{ width: 8, height: 8, borderRadius: "50%", background: color }} />
                                 </div>
                                 <div style={{ flex: 1 }}>
-                                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: "#333" }}>{label}</div>
+                                    <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 600, color: t.text }}>{label}</div>
                                 </div>
                                 {i < 2 && (
-                                    <div style={{ position: "absolute", left: 34, marginTop: 28, width: 1, height: 10, background: "rgba(0,0,0,0.1)" }} />
+                                    <div style={{ position: "absolute", left: 34, marginTop: 28, width: 1, height: 10, background: t.border }} />
                                 )}
                             </div>
                         ))}
@@ -527,36 +595,36 @@ function WhyAegis() {
 
                 {/* 2 — Human Control */}
                 <div style={{
-                    background: BG, border: "1px solid rgba(0,0,0,0.07)",
+                    background: t.bg, border: `1px solid ${t.borderCard}`,
                     borderRadius: 14, padding: "32px 28px", display: "flex", flexDirection: "column", gap: 20,
                 }}>
                     <div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: NAVY, marginBottom: 10 }}>
+                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: t.heading, marginBottom: 10 }}>
                             Human Control
                         </div>
-                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.6, color: "#666" }}>
+                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.6, color: t.textMuted }}>
                             Low-risk actions proceed automatically. High-risk decisions pause for a human before anything happens.
                         </div>
                     </div>
                     {/* visual — approval card */}
-                    <ApprovalCard />
+                    <ApprovalCard t={t} />
                 </div>
 
                 {/* 3 — Evidence */}
                 <div style={{
-                    background: BG, border: "1px solid rgba(0,0,0,0.07)",
+                    background: t.bg, border: `1px solid ${t.borderCard}`,
                     borderRadius: 14, padding: "32px 28px", display: "flex", flexDirection: "column", gap: 20,
                 }}>
                     <div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: NAVY, marginBottom: 10 }}>
+                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 700, color: t.heading, marginBottom: 10 }}>
                             Evidence, Not Assumptions
                         </div>
-                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.6, color: "#666" }}>
+                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 14, lineHeight: 1.6, color: t.textMuted }}>
                             Every decision leaves a trail. Investigate outcomes and answer compliance questions from one audit log.
                         </div>
                     </div>
                     {/* visual — audit timeline */}
-                    <AuditTimeline />
+                    <AuditTimeline t={t} />
                 </div>
 
             </div>
@@ -565,12 +633,12 @@ function WhyAegis() {
 }
 
 // ── Approval card (interactive) ───────────────────────────────
-function ApprovalCard() {
+function ApprovalCard({ t }) {
     const [state, setState] = useState("pending"); // pending | approved | denied
 
     return (
         <div style={{
-            background: "#fff", border: "1px solid rgba(0,0,0,0.07)",
+            background: t.surface, border: `1px solid ${t.borderCard}`,
             borderRadius: 10, padding: "18px 20px",
         }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
@@ -580,18 +648,18 @@ function ApprovalCard() {
                 <span style={{
                     fontFamily: "'Space Grotesk', sans-serif", fontSize: 10, fontWeight: 700,
                     padding: "2px 8px", borderRadius: 4,
-                    background: state === "pending" ? "rgba(220,38,38,0.08)" : state === "approved" ? "rgba(22,163,74,0.08)" : "rgba(0,0,0,0.06)",
-                    color: state === "pending" ? "#dc2626" : state === "approved" ? "#16a34a" : "#666",
+                    background: state === "pending" ? "rgba(220,38,38,0.08)" : state === "approved" ? "rgba(22,163,74,0.08)" : t.borderSoft,
+                    color: state === "pending" ? "#dc2626" : state === "approved" ? "#16a34a" : t.textMuted,
                     transition: "all 0.3s",
                 }}>
                     {state === "pending" ? "● High Risk" : state === "approved" ? "✓ Approved" : "✕ Denied"}
                 </span>
             </div>
 
-            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: NAVY, marginBottom: 4 }}>
+            <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 600, color: t.heading, marginBottom: 4 }}>
                 Customer Refund Agent
             </div>
-            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#777", marginBottom: 14 }}>
+            <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.textFaint, marginBottom: 14 }}>
                 process_refund · ₹30,000 · Risk 92
             </div>
 
@@ -619,7 +687,7 @@ function ApprovalCard() {
             ) : (
                 <button onClick={() => setState("pending")} style={{
                     width: "100%", fontFamily: "'Inter', sans-serif", fontSize: 12,
-                    color: "#999", background: "none", border: "1px solid rgba(0,0,0,0.1)",
+                    color: t.textFaint, background: "none", border: `1px solid ${t.border}`,
                     borderRadius: 6, padding: "9px 0", cursor: "pointer",
                 }}>Reset</button>
             )}
@@ -628,7 +696,7 @@ function ApprovalCard() {
 }
 
 // ── Audit timeline (scroll-reveal) ───────────────────────────
-function AuditTimeline() {
+function AuditTimeline({ t }) {
     const [visible, setVisible] = useState(0);
     const ref = useRef(null);
 
@@ -642,7 +710,7 @@ function AuditTimeline() {
 
     useEffect(() => {
         const observer = new IntersectionObserver(
-            ([entry]) => { if (entry.isIntersecting) { let i = 0; const t = setInterval(() => { i++; setVisible(i); if (i >= events.length) clearInterval(t); }, 300); } },
+            ([entry]) => { if (entry.isIntersecting) { let i = 0; const timer = setInterval(() => { i++; setVisible(i); if (i >= events.length) clearInterval(timer); }, 300); } },
             { threshold: 0.3 }
         );
         if (ref.current) observer.observe(ref.current);
@@ -651,7 +719,7 @@ function AuditTimeline() {
 
     return (
         <div ref={ref} style={{
-            background: "#fff", border: "1px solid rgba(0,0,0,0.07)",
+            background: t.surface, border: `1px solid ${t.borderCard}`,
             borderRadius: 10, padding: "18px 20px",
             display: "flex", flexDirection: "column", gap: 0,
         }}>
@@ -662,13 +730,13 @@ function AuditTimeline() {
                     transform: i < visible ? "none" : "translateY(6px)",
                     transition: "opacity 0.35s, transform 0.35s",
                     paddingBottom: i < events.length - 1 ? 12 : 0,
-                    borderBottom: i < events.length - 1 ? "1px solid rgba(0,0,0,0.05)" : "none",
+                    borderBottom: i < events.length - 1 ? `1px solid ${t.borderSoft}` : "none",
                     marginBottom: i < events.length - 1 ? 12 : 0,
                 }}>
                     <div style={{ width: 6, height: 6, borderRadius: "50%", background: color, marginTop: 4, flexShrink: 0 }} />
                     <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "#333", lineHeight: 1.4 }}>{text}</div>
-                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 10, color: "#bbb", marginTop: 2 }}>{time}</div>
+                        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.text, lineHeight: 1.4 }}>{text}</div>
+                        <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 10, color: t.textFainter, marginTop: 2 }}>{time}</div>
                     </div>
                 </div>
             ))}
@@ -677,11 +745,11 @@ function AuditTimeline() {
 }
 
 // ── Final CTA ─────────────────────────────────────────────────
-function CTA() {
+function CTA({ t }) {
   const nav = useNavigate();
   return (
     <section style={{
-      background: NAVY, padding: "120px 48px",
+      background: t.ctaBg, padding: "120px 48px",
       position: "relative", overflow: "hidden",
     }}>
       {/* subtle dot grid */}
@@ -708,7 +776,7 @@ function CTA() {
         <h2 style={{
           fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
           fontSize: "clamp(32px, 4vw, 52px)", lineHeight: 1.1,
-          letterSpacing: "-0.03em", color: "#F8F9FC", margin: "0 0 20px",
+          letterSpacing: "-0.03em", color: t.ctaText, margin: "0 0 20px",
         }}>
           Give your AI agents<br />freedom to act.<br />
           <span style={{ color: ACCENT }}>Not freedom to operate unchecked.</span>
@@ -716,7 +784,7 @@ function CTA() {
 
         <p style={{
           fontFamily: "'Inter', sans-serif", fontSize: 17, lineHeight: 1.7,
-          color: "rgba(248,249,252,0.55)", margin: "0 0 48px",
+          color: t.ctaTextMuted, margin: "0 0 48px",
         }}>
           Connect your AI systems to Aegis and put a governance layer between autonomous decisions and real-world actions.
         </p>
@@ -737,8 +805,8 @@ function CTA() {
               }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", background: ACCENT }} />
               </div>
-              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 700, color: "#F8F9FC", marginBottom: 6 }}>{label}</div>
-              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "rgba(248,249,252,0.4)", lineHeight: 1.5 }}>{desc}</div>
+              <div style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 700, color: t.ctaText, marginBottom: 6 }}>{label}</div>
+              <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.ctaTextFaint, lineHeight: 1.5 }}>{desc}</div>
             </div>
           ))}
         </div>
@@ -754,7 +822,7 @@ function CTA() {
           onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "none"; }}
         >Start securing your AI</button>
 
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: "rgba(248,249,252,0.3)", marginTop: 16 }}>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, color: t.ctaTextFainter, marginTop: 16 }}>
           Built for teams adopting AI agents without giving up control.
         </div>
       </div>
@@ -762,25 +830,25 @@ function CTA() {
       {/* footer line */}
       <div style={{
         position: "relative", zIndex: 2,
-        borderTop: "1px solid rgba(255,255,255,0.07)",
+        borderTop: `1px solid ${t.ctaBorder}`,
         marginTop: 80, paddingTop: 32,
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 16, color: "#F8F9FC" }}>AEGIS</span>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 16, color: t.ctaText }}>AEGIS</span>
           <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 16, color: ACCENT }}>AI</span>
         </div>
-        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: "rgba(248,249,252,0.25)" }}>
+        <div style={{ fontFamily: "'Inter', sans-serif", fontSize: 12, color: t.ctaTextFainter }}>
           © 2026 Aegis AI. All rights reserved.
         </div>
         <div style={{ display: "flex", gap: 24 }}>
           {["How it works", "Why Aegis", "Log in"].map(label => (
             <a key={label} href="#" style={{
               fontFamily: "'Inter', sans-serif", fontSize: 12,
-              color: "rgba(248,249,252,0.35)", textDecoration: "none", transition: "color 0.2s",
+              color: t.ctaTextFaint, textDecoration: "none", transition: "color 0.2s",
             }}
-              onMouseEnter={e => e.target.style.color = "rgba(248,249,252,0.8)"}
-              onMouseLeave={e => e.target.style.color = "rgba(248,249,252,0.35)"}
+              onMouseEnter={e => e.target.style.color = t.ctaText}
+              onMouseLeave={e => e.target.style.color = t.ctaTextFaint}
             >{label}</a>
           ))}
         </div>
@@ -790,13 +858,26 @@ function CTA() {
 }
 
 export default function Landing() {
+  const [dark, setDark] = useState(() => {
+    if (typeof window === "undefined") return false
+    const saved = localStorage.getItem("aegis_landing_theme")
+    if (saved) return saved === "dark"
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false
+  })
+
+  useEffect(() => {
+    localStorage.setItem("aegis_landing_theme", dark ? "dark" : "light")
+  }, [dark])
+
+  const t = dark ? THEMES.dark : THEMES.light
+
   return (
-    <div style={{ margin: 0, padding: 0 }}>
-      <NavBar />
-      <Hero />
-      <Process />
-      <WhyAegis />
-      <CTA />
+    <div style={{ margin: 0, padding: 0, background: t.bg, transition: "background 0.3s" }}>
+      <NavBar dark={dark} onToggleTheme={() => setDark(d => !d)} t={t} />
+      <Hero t={t} />
+      <Process t={t} />
+      <WhyAegis t={t} />
+      <CTA t={t} />
     </div>
-  );
+  )
 }
