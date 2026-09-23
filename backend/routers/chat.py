@@ -423,6 +423,7 @@ def chat_history(current_user: dict = Depends(get_current_user)):
     cursor.execute(f"""
         SELECT * FROM audit_log
         WHERE user_id = ? AND tool_name IN ({placeholders})
+          AND (hidden_by_user IS NULL OR hidden_by_user = 0)
         ORDER BY timestamp ASC
     """, (user_id, *CHAT_TOOL_NAMES))
     rows = [dict(row) for row in cursor.fetchall()]
@@ -445,20 +446,24 @@ def chat_history(current_user: dict = Depends(get_current_user)):
 
 @router.delete("/history")
 def clear_my_chat_history(current_user: dict = Depends(get_current_user)):
-    """Employee clears their own chat history from audit_log."""
+    """
+    Employee clears their own chat view — rows are hidden from the employee's
+    history but remain fully visible to admins in the audit trail.
+    """
     user_id = current_user["id"]
     placeholders = ",".join("?" for _ in CHAT_TOOL_NAMES)
 
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute(f"""
-        DELETE FROM audit_log
+        UPDATE audit_log
+        SET hidden_by_user = 1
         WHERE user_id = ? AND tool_name IN ({placeholders})
     """, (user_id, *CHAT_TOOL_NAMES))
-    deleted = cursor.rowcount
+    hidden = cursor.rowcount
     conn.commit()
     conn.close()
-    return {"deleted": deleted}
+    return {"deleted": hidden}
 
 
 @router.get("/history/user/{user_id}")

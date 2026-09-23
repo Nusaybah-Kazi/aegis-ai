@@ -5,19 +5,27 @@ const BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const api = axios.create({
   baseURL: BASE,
-  timeout: 45000,   // was 15000 — Render cold start can take 30–60s
+  timeout: 45000,
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Attach JWT from localStorage to every request
+api.interceptors.request.use(config => {
+  const token = localStorage.getItem('aegis_token')
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
 // ─── Chat History ─────────────────────────────────────────────────────────────
-export const getChatHistory       = ()         => api.get('/chat/history')
-export const getEmployeeChatHistory = (userId) => api.get(`/chat/history/user/${userId}`)
-export const clearMyChatHistory   = ()         => api.delete('/chat/history')
+export const getChatHistory         = ()         => api.get('/chat/history')
+export const getEmployeeChatHistory = (userId)   => api.get(`/chat/history/user/${userId}`)
+export const clearMyChatHistory     = ()         => api.delete('/chat/history')
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 export const loginUser    = (data) => api.post('/auth/login', data)
 export const registerUser = (data) => api.post('/auth/register', data)
 export const getMe        = ()     => api.get('/auth/me')
+export const getUsers     = ()     => api.get('/auth/users')
 
 // ─── Agents ───────────────────────────────────────────────────────────────────
 export const getAgents   = ()      => api.get('/agents/')
@@ -37,17 +45,17 @@ export const deleteTool  = (id)    => api.delete(`/tools/${id}`)
 export const evaluateAction = (data) => api.post('/gateway/evaluate', {
   agent_id:   data.agent_id,
   tool_name:  data.tool_name ?? data.tool_id,
-  action:     data.action ?? data.action_type,
+  action:     data.action    ?? data.action_type,
   parameters: JSON.stringify(data.payload ?? {}),
 })
 
 export const approveAction = (id, note, reviewerName) => api.post(`/gateway/approve/${id}`, {
   reviewed_by: reviewerName || 'admin',
-  reason:      note || 'Approved via Aegis UI',
+  reason:      note         || 'Approved via Aegis UI',
 })
 export const denyAction = (id, note, reviewerName) => api.post(`/gateway/deny/${id}`, {
   reviewed_by: reviewerName || 'admin',
-  reason:      note || 'Denied via Aegis UI',
+  reason:      note         || 'Denied via Aegis UI',
 })
 export const getQueue = () => api.get('/gateway/queue')
 
@@ -56,6 +64,7 @@ export const getAuditLogs = (params) => api.get('/audit/', { params })
 export const getAuditLog  = (id)     => api.get(`/audit/${id}`)
 
 // ─── Compliance (RAG) ─────────────────────────────────────────────────────────
+// Used by both Admin ComplianceChat and Employee Policy Q&A tab
 export const askCompliance = (q) => api.get('/compliance/ask', { params: { q } })
 
 // ─── Orchestrator ─────────────────────────────────────────────────────────────

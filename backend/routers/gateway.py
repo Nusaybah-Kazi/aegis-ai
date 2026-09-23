@@ -6,7 +6,7 @@ Runtime Security Gateway — Phase 5 update.
 Flow for every tool call:
   1. Look up the tool in the DB
   2. Parse parameters (amount etc.)
-  3. Policy check — does any org rule prohibit or restrict this? (NEW in Phase 5)
+  3. Policy check — does any org rule prohibit or restrict this? (Phase 5)
   4. Risk score — how dangerous numerically?
   5. Final decision = strictest of (policy verdict, risk recommendation)
   6. Log to audit trail / approval queue
@@ -23,7 +23,6 @@ Decision matrix:
 import json
 from datetime import datetime, timezone
 
-# NEW
 from fastapi import APIRouter, Depends, HTTPException
 
 from backend.database.db import get_connection
@@ -35,7 +34,7 @@ from backend.models.gateway import (
     GatewayReviewRequest,
 )
 from backend.services.groq_client import chat as groq_chat
-from backend.services.policy_checker import check_policies  # ← NEW
+from backend.services.policy_checker import check_policies
 from backend.services.risk_engine import calculate_risk
 
 router = APIRouter(prefix="/gateway", tags=["Runtime Gateway"])
@@ -47,11 +46,6 @@ with general work questions. Be concise and helpful."""
 
 
 def _complete_chat_request(tool_name: str, parameters_json: str) -> str:
-    """
-    Called only when an admin approves a paused chat item.
-    Re-runs the original prompt through the appropriate model and
-    returns the answer text to store in approval_queue.response.
-    """
     try:
         params = json.loads(parameters_json) if parameters_json else {}
     except json.JSONDecodeError:
@@ -63,7 +57,7 @@ def _complete_chat_request(tool_name: str, parameters_json: str) -> str:
 
     if tool_name == "internal_ai":
         return groq_chat(system_prompt=INTERNAL_SYSTEM_PROMPT, user_message=message, max_tokens=800)
-    else:  # external_ai
+    else:
         return groq_chat(
             system_prompt="You are an external AI assistant. Answer helpfully and concisely.",
             user_message=message,
@@ -72,7 +66,6 @@ def _complete_chat_request(tool_name: str, parameters_json: str) -> str:
         )
 
 
-# NEW
 def _write_audit_log(cursor, agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by=None, user_id=None):
     cursor.execute("""
         INSERT INTO audit_log (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by, user_id)
@@ -80,13 +73,11 @@ def _write_audit_log(cursor, agent_id, tool_name, action, parameters, risk_score
     """, (agent_id, tool_name, action, parameters, risk_score, decision, reason, reviewed_by, user_id))
 
 
-# NEW
 @router.post("/evaluate", response_model=GatewayEvaluateResponse)
 def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_current_user_optional)):
     conn = get_connection()
     cursor = conn.cursor()
 
-    # ── 1. Look up tool ──────────────────────────────────────────────────────
     cursor.execute("SELECT * FROM tools WHERE name = ?", (payload.tool_name,))
     row = cursor.fetchone()
     if row is None:
@@ -95,7 +86,6 @@ def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_c
 
     tool = dict(row)
 
-    # ── 2. Parse parameters ──────────────────────────────────────────────────
     amount = None
     if payload.parameters:
         try:
@@ -105,19 +95,15 @@ def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_c
             conn.close()
             raise HTTPException(status_code=400, detail="parameters must be valid JSON")
 
-    # ── 3. Policy check (NEW — Phase 5) ─────────────────────────────────────
     policy_result = check_policies(
         tool_name=payload.tool_name,
         tool_data_sensitivity=tool.get("data_sensitivity", "low"),
         amount=amount,
     )
 
-    # ── 4. Risk scoring ──────────────────────────────────────────────────────
     assessment = calculate_risk(tool, agent_id=payload.agent_id, amount=amount)
-    recommendation = assessment["recommendation"]  # 'approve', 'warn', 'pause', 'block'
+    recommendation = assessment["recommendation"]
 
-    # ── 5. Combine policy verdict + risk recommendation ──────────────────────
-    # Build a unified reason string
     risk_reason = "; ".join(assessment["factors"])
     all_reasons = []
 
@@ -127,11 +113,9 @@ def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_c
     all_reasons.append(f"[RISK] {risk_reason}")
     combined_reason = " | ".join(all_reasons)
 
-    # Determine final decision — policy can only make things stricter, never looser
     if not policy_result.passed and policy_result.action == "block":
         decision = "blocked"
     elif not policy_result.passed and policy_result.action == "pause":
-        # Policy says pause — override approve/warn, but block still wins
         if recommendation == "block":
             decision = "blocked"
         else:
@@ -140,11 +124,9 @@ def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_c
         decision = "approved"
     elif recommendation == "pause":
         decision = "paused"
-    else:  # block
+    else:
         decision = "blocked"
 
-    # ── 6. Execute decision ──────────────────────────────────────────────────
-    # ── 6. Execute decision ──────────────────────────────────────────────────
     queue_id = None
     user_id = current_user["id"] if current_user else None
 
@@ -170,7 +152,7 @@ def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_c
             user_id=user_id
         )
 
-    else:  # blocked
+    else:
         _write_audit_log(
             cursor, payload.agent_id, payload.tool_name, payload.action,
             payload.parameters, assessment["risk_score"], decision, combined_reason,
@@ -192,30 +174,44 @@ def evaluate(payload: GatewayEvaluateRequest, current_user: dict = Depends(get_c
     )
 
 
-# ── Approval queue endpoints (unchanged from Phase 4) ────────────────────────
+# ── Approval queue ────────────────────────────────────────────────────────────
 
-@router.get("/queue", response_model=list[ApprovalQueueResponse])
+@router.get("/queue")
 def get_queue(status: str | None = None):
+    """
+    Returns approval queue items enriched with the requesting user's
+    name and email so the admin UI can show who triggered each request
+    without a separate API call.
+    """
     conn = get_connection()
     cursor = conn.cursor()
 
+    base_query = """
+        SELECT
+            aq.*,
+            u.name  AS user_name,
+            u.email AS user_email
+        FROM approval_queue aq
+        LEFT JOIN users u ON aq.user_id = u.id
+        {where}
+        ORDER BY aq.created_at DESC
+    """
+
     if status:
-        cursor.execute("SELECT * FROM approval_queue WHERE status = ? ORDER BY created_at DESC", (status,))
+        cursor.execute(base_query.format(where="WHERE aq.status = ?"), (status,))
     else:
-        cursor.execute("SELECT * FROM approval_queue ORDER BY created_at DESC")
+        cursor.execute(base_query.format(where=""))
 
     rows = cursor.fetchall()
     conn.close()
     return [dict(row) for row in rows]
 
 
-# NEW
 @router.post("/approve/{queue_id}", response_model=ApprovalQueueResponse)
 def approve(queue_id: int, payload: GatewayReviewRequest, _: dict = Depends(require_admin)):
     return _resolve(queue_id, "approved", payload)
 
 
-# NEW
 @router.post("/deny/{queue_id}", response_model=ApprovalQueueResponse)
 def deny(queue_id: int, payload: GatewayReviewRequest, _: dict = Depends(require_admin)):
     return _resolve(queue_id, "denied", payload)
@@ -238,7 +234,6 @@ def _resolve(queue_id: int, new_status: str, payload: GatewayReviewRequest):
 
     now = datetime.now(timezone.utc).isoformat()
 
-    # ── Chat auto-complete on approval ───────────────────────────────────────
     response_text = None
     if new_status == "approved" and item["tool_name"] in CHAT_TOOL_NAMES:
         response_text = _complete_chat_request(item["tool_name"], item["parameters"])

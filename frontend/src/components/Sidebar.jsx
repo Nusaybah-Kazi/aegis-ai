@@ -2,22 +2,24 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Bot, Shield, ScrollText,
-  MessageSquare, Hexagon, LogOut, MessageCircle, Clock, Users,
+  MessageSquare, Hexagon, LogOut, MessageCircle,
+  Clock, Users, BookOpen,
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const ADMIN_NAV = [
-  { to: '/histories', icon: Users, label: 'Employee Chats' },
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Overview'    },
-  { to: '/agents',     icon: Bot,             label: 'Agents'      },
-  { to: '/gateway',    icon: Shield,          label: 'Gateway'     },
-  { to: '/audit',      icon: ScrollText,      label: 'Audit Trail' },
-  { to: '/compliance', icon: MessageSquare,   label: 'Compliance'  },
+  { to: '/histories',  icon: Users,          label: 'Employee Chats' },
+  { to: '/dashboard',  icon: LayoutDashboard, label: 'Overview'       },
+  { to: '/agents',     icon: Bot,             label: 'Agents'         },
+  { to: '/gateway',    icon: Shield,          label: 'Approval Queue' },
+  { to: '/audit',      icon: ScrollText,      label: 'Audit Trail'    },
+  { to: '/compliance', icon: MessageSquare,   label: 'Compliance'     },
 ]
 
 const EMPLOYEE_NAV = [
-  { to: '/chat',     icon: MessageCircle, label: 'AI Assistant' },
-  { to: '/requests', icon: Clock,         label: 'My Requests'  },
+  { to: '/chat',    icon: MessageCircle, label: 'AI Assistant' },
+  { to: '/policy',  icon: BookOpen,      label: 'Policy Q&A'   },
+  { to: '/requests',icon: Clock,         label: 'My Requests'  },
 ]
 
 export default function Sidebar() {
@@ -32,7 +34,6 @@ export default function Sidebar() {
 
   return (
     <aside className="w-56 flex-shrink-0 flex flex-col border-r border-wire bg-surface">
-      {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-wire">
         <Hexagon size={20} className="text-signal" strokeWidth={1.5} />
         <span className="font-display font-semibold text-ink tracking-tight">
@@ -40,7 +41,6 @@ export default function Sidebar() {
         </span>
       </div>
 
-      {/* Nav */}
       <nav className="flex-1 px-2 py-4 flex flex-col gap-0.5">
         <p className="text-muted text-xs font-medium px-3 mb-2 uppercase tracking-widest">
           {user?.role === 'admin' ? 'Platform' : 'Workspace'}
@@ -63,7 +63,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* User + logout */}
       <div className="px-4 py-4 border-t border-wire flex flex-col gap-2">
         {user && (
           <div className="flex items-center gap-2 px-1">

@@ -62,7 +62,6 @@ function ChatBubble({ msg }) {
     )
   }
 
-  // answered
   return (
     <div className="flex justify-start mb-3">
       <div className="bg-[#111b2a] border border-[#24344a] text-[#c7d5e8] rounded-lg px-4 py-2 max-w-[75%]">
@@ -79,30 +78,25 @@ function ChatBubble({ msg }) {
 
 function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, onNewMessage, placeholder }) {
   const [messages, setMessages] = useState(initialMessages || [])
-  const [input, setInput]       = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [input,    setInput]    = useState('')
+  const [loading,  setLoading]  = useState(false)
   const bottomRef               = useRef(null)
 
-  // Sync if parent reloads history (e.g. after clear, or switching agent tabs)
   useEffect(() => { setMessages(initialMessages || []) }, [initialMessages])
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, loading])
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, loading])
 
   const send = async () => {
     const text = input.trim()
     if (!text || loading) return
 
-    const userMsg = { role: 'user', text }
-    setMessages(prev => [...prev, userMsg])
+    setMessages(prev => [...prev, { role: 'user', text }])
     setInput('')
     setLoading(true)
 
     try {
       const body = { message: text, ...extraFields }
       const { data } = await client.post(endpoint, body)
-      const assistantMsg = {
+      setMessages(prev => [...prev, {
         role:     'assistant',
         status:   data.status,
         text:     data.answer,
@@ -110,8 +104,7 @@ function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, o
         findings: data.findings,
         queue_id: data.queue_id,
         provider: data.provider,
-      }
-      setMessages(prev => [...prev, assistantMsg])
+      }])
       onNewMessage?.()
     } catch (err) {
       setMessages(prev => [...prev, {
@@ -124,14 +117,9 @@ function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, o
     }
   }
 
-  const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() }
-  }
-
   return (
     <div className="flex flex-col h-[70vh] border border-[#24344a] rounded-lg bg-[#0f1724]">
       {providerSelector}
-
       <div className="flex-1 overflow-y-auto p-4">
         {messages.length === 0 && (
           <p className="text-sm text-[#7f96b3] text-center mt-8">
@@ -142,23 +130,22 @@ function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, o
         {loading && (
           <div className="flex justify-start mb-3">
             <div className="bg-[#111b2a] border border-[#24344a] text-[#6f89a8] rounded-lg px-4 py-2 text-sm">
-              Thinking...
+              Thinking…
             </div>
           </div>
         )}
         <div ref={bottomRef} />
       </div>
-
       <div className="border-t border-[#24344a] p-3 flex gap-2">
         <textarea
           className="flex-1 bg-[#080e17] border border-[#2a3b52] text-[#c7d5e8]
                      placeholder-[#5d7898] rounded-lg px-3 py-2 text-sm resize-none
                      focus:outline-none focus:ring-2 focus:ring-blue-500"
           rows={2}
-          placeholder="Type your message..."
+          placeholder="Type your message…"
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
         />
         <button
           onClick={send}
@@ -174,18 +161,15 @@ function ChatPanel({ endpoint, extraFields, providerSelector, initialMessages, o
 }
 
 export default function EmployeeChat() {
-  const [agents,            setAgents]           = useState([])
-  const [agentsLoading,     setAgentsLoading]     = useState(true)
-  const [tab,               setTab]               = useState(null) // agent id, or 'external'
-  const [provider,          setProvider]          = useState('gpt-oss-fast')
-  const [internalByAgent,   setInternalByAgent]   = useState({})
-  const [externalMessages,  setExternalMessages]  = useState([])
-  const [historyLoading,    setHistoryLoading]    = useState(true)
-  const [clearing,          setClearing]          = useState(false)
+  const [agents,           setAgents]          = useState([])
+  const [agentsLoading,    setAgentsLoading]    = useState(true)
+  const [tab,              setTab]              = useState(null)
+  const [provider,         setProvider]         = useState('gpt-oss-fast')
+  const [internalByAgent,  setInternalByAgent]  = useState({})
+  const [externalMessages, setExternalMessages] = useState([])
+  const [historyLoading,   setHistoryLoading]   = useState(true)
+  const [clearing,         setClearing]         = useState(false)
 
-  // Load the real agent list from the admin's Agent Inventory, so employee
-  // tabs always match whatever agents actually exist — no hardcoding agent
-  // names in two places that can drift out of sync.
   useEffect(() => {
     getAgents()
       .then(({ data }) => {
@@ -202,11 +186,8 @@ export default function EmployeeChat() {
       const { data } = await getChatHistory()
       setInternalByAgent(data.internal_by_agent || {})
       setExternalMessages(data.external || [])
-    } catch {
-      // silently fail — user just starts fresh
-    } finally {
-      setHistoryLoading(false)
-    }
+    } catch { /* silently fail */ }
+    finally { setHistoryLoading(false) }
   }
 
   useEffect(() => { loadHistory() }, [])
@@ -218,15 +199,12 @@ export default function EmployeeChat() {
       await clearMyChatHistory()
       setInternalByAgent({})
       setExternalMessages([])
-    } catch {
-      alert('Failed to clear history. Please try again.')
-    } finally {
-      setClearing(false)
-    }
+    } catch { alert('Failed to clear history. Please try again.') }
+    finally { setClearing(false) }
   }
 
+  const isLoading   = agentsLoading || historyLoading || tab === null
   const activeAgent = agents.find(a => a.id === tab)
-  const loading = agentsLoading || historyLoading || tab === null
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -243,16 +221,16 @@ export default function EmployeeChat() {
         </button>
       </div>
 
-      {/* Tab switcher — one tab per real agent, plus External AI */}
+      {/* Tab bar */}
       <div className="flex gap-2 mb-4 flex-wrap">
         {agents.map(a => (
           <button
             key={a.id}
             onClick={() => setTab(a.id)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               tab === a.id
                 ? 'bg-blue-600 text-white'
-                : 'bg-[#182333] text-[#9eb3cc] border border-[#2a3b52]'
+                : 'bg-[#182333] text-[#9eb3cc] border border-[#2a3b52] hover:border-blue-600/40'
             }`}
           >
             {a.name}
@@ -260,17 +238,18 @@ export default function EmployeeChat() {
         ))}
         <button
           onClick={() => setTab('external')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium ${
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
             tab === 'external'
               ? 'bg-blue-600 text-white'
-              : 'bg-[#182333] text-[#9eb3cc] border border-[#2a3b52]'
+              : 'bg-[#182333] text-[#9eb3cc] border border-[#2a3b52] hover:border-blue-600/40'
           }`}
         >
           External AI
         </button>
       </div>
 
-      {loading ? (
+      {/* Panel */}
+      {isLoading ? (
         <div className="h-[70vh] border border-[#24344a] rounded-lg bg-[#0f1724]
                         flex items-center justify-center text-[#6f89a8] text-sm">
           Loading…
@@ -307,11 +286,7 @@ export default function EmployeeChat() {
           extraFields={{ agent_id: tab }}
           initialMessages={internalByAgent[tab] || []}
           onNewMessage={loadHistory}
-          placeholder={
-            activeAgent
-              ? `Start a conversation with ${activeAgent.name} below.`
-              : 'Start a conversation below.'
-          }
+          placeholder={activeAgent ? `Start a conversation with ${activeAgent.name} below.` : 'Start a conversation below.'}
         />
       )}
     </div>

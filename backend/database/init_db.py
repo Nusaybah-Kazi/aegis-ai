@@ -201,6 +201,11 @@ def init_db():
         conn.execute("ALTER TABLE audit_log ADD COLUMN queue_id INTEGER")
         print("✅ Migration: added queue_id to audit_log")
 
+    # Phase 12 — soft-delete for employee chat clear
+    if "hidden_by_user" not in existing_audit_cols:
+        conn.execute("ALTER TABLE audit_log ADD COLUMN hidden_by_user INTEGER DEFAULT 0")
+        print("✅ Migration: added hidden_by_user to audit_log")
+
     conn.commit()
     print("Migrations complete.")
     conn.close()

@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import Sidebar from './components/Sidebar'
 import Landing from "./pages/Landing";
 
+import PolicyQA from './pages/PolicyQA'
 import MyRequests from './pages/MyRequests'
 import EmployeeChat from './pages/EmployeeChat'
 import Login from './pages/Login'
@@ -97,6 +98,12 @@ export default function App() {
         <Route path="/requests" element={
           <ProtectedRoute>
             <AppShell><MyRequests /></AppShell>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/policy" element={
+          <ProtectedRoute>
+            <AppShell><PolicyQA /></AppShell>
           </ProtectedRoute>
         } />
 
